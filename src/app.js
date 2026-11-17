@@ -2,8 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { corsOrigins, env, isProduction } from './config/env.js';
+import { corsOrigins, docsEnabled, env, isProduction } from './config/env.js';
 import apiRoutes from './routes/index.js';
+import docsRoutes from './routes/docs.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -26,6 +27,11 @@ export function createApp() {
   });
 
   app.use('/api', apiRoutes);
+
+  // Swagger UI + OpenAPI spec (ปิดได้ด้วย DOCS_ENABLED=false)
+  if (docsEnabled) {
+    app.use('/api', docsRoutes);
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

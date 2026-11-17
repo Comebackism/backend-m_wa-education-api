@@ -15,6 +15,7 @@ REST API สำหรับระบบจัดการเรียนกา�
 - [กติกาทางธุรกิจที่สำคัญ](#-กติกาทางธุรกิจที่สำคัญ)
 - [เริ่มต้นใช้งาน (Getting Started)](#-เริ่มต้นใช้งาน-getting-started)
 - [บัญชีทดลอง (Demo Data)](#-บัญชีทดลอง-demo-data)
+- [เอกสาร API (Swagger UI)](#-เอกสาร-api-swagger-ui)
 - [ภาพรวม API](#-ภาพรวม-api)
 - [โครงสร้างโปรเจกต์](#-โครงสร้างโปรเจกต์)
 - [เอกสารออกแบบ (Diagrams)](#-เอกสารออกแบบ-diagrams)
@@ -32,6 +33,7 @@ REST API สำหรับระบบจัดการเรียนกา�
 | Validation | Zod 4 |
 | Auth | JWT (access + refresh token rotation), bcryptjs |
 | Security | helmet, CORS allow-list, express-rate-limit |
+| เอกสาร API | Swagger UI (`swagger-ui-express`) + OpenAPI 3.0 |
 | Logging | morgan |
 
 ---
@@ -130,6 +132,7 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/wa_education?schema=
 JWT_ACCESS_SECRET="change-me-access-secret"
 JWT_REFRESH_SECRET="change-me-refresh-secret"
 CORS_ORIGIN=http://localhost:5173
+DOCS_ENABLED=   # เว้นว่าง = เปิด Swagger ใน dev / ปิดใน production
 ```
 
 > สร้าง secret จริงด้วย `openssl rand -base64 48`
@@ -186,9 +189,42 @@ npm start      # โหมดปกติ
 
 ---
 
+## 📘 เอกสาร API (Swagger UI)
+
+โปรเจกต์มีเอกสาร API แบบอินเทอร์แอกทีฟให้แล้ว (OpenAPI 3.0) — ไม่ต้องเขียน Swagger annotation ในโค้ด แต่เก็บ spec ไว้ที่ [`src/docs/openapi.js`](src/docs/openapi.js)
+
+| ปลายทาง | รายละเอียด |
+| :--- | :--- |
+| `GET /api/docs` | **Swagger UI** — ดูทุก endpoint และกด **Try it out** ยิง API จริงได้เลย |
+| `GET /api/docs/openapi.json` | OpenAPI spec (JSON) — ใช้ import เข้า Postman / Insomnia / codegen |
+
+วิธีใช้:
+
+1. รันเซิร์ฟเวอร์ (`npm run dev`) แล้วเปิด <http://localhost:4000/api/docs>
+2. กด **Authorize** 🔓 แล้ววาง `accessToken` ที่ได้จาก `POST /api/auth/login`
+   (หรือกด Try it out ที่ `/api/auth/login` ด้วยบัญชีตัวอย่างก่อน)
+3. token จะถูกจำไว้ในเบราว์เซอร์ (`persistAuthorization`) จึงยิง endpoint อื่นต่อได้ทันที
+
+รหัสข้อผิดพลาดทั้งหมด (`400/401/403/404/409/422/429/500`) ใช้รูปแบบเดียวกันหมด:
+
+```json
+{ "error": { "code": "FORBIDDEN", "message": "ผลสอบยังไม่ถูกปล่อย กรุณารอครูประกาศผล" } }
+```
+
+**เปิด/ปิดเอกสาร** ด้วย env `DOCS_ENABLED`
+
+- ไม่ตั้งค่า → เปิดใน `development` / `test`, **ปิดอัตโนมัติใน `production`**
+- `DOCS_ENABLED=false` → ปิดทุกโหมด
+- `DOCS_ENABLED=true` → เปิดแม้ใน production (ระวัง: เผยโครงสร้าง API ให้สาธารณะ)
+
+> เมื่อเพิ่ม endpoint ใหม่ อย่าลืมอัปเดต `src/docs/openapi.js` ด้วยจะได้ตรงกับของจริง
+
+---
+
 ## 🌐 ภาพรวม API
 
 Base path: `/api` — ทุก endpoint (ยกเว้น auth และ `/health`) ต้องแนบ Bearer token
+รันเซิร์ฟเวอร์แล้วเปิด **<http://localhost:4000/api/docs>** เพื่อดูฉบับอินเทอร์แอกทีฟ
 
 ### Auth — `/api/auth`
 
@@ -260,6 +296,7 @@ src/
   app.js                 # ประกอบ Express app (helmet, cors, routes, error handler)
   server.js              # entrypoint + graceful shutdown
   config/env.js          # โหลดและ validate env ด้วย zod
+  docs/openapi.js        # OpenAPI 3.0 spec (ต้นทางของ Swagger UI)
   lib/
     prisma.js            # PrismaClient + @prisma/adapter-pg
     access.js            # helper ตรวจสิทธิ์ (ownership / enrollment)
@@ -268,7 +305,7 @@ src/
     errors.js, serialize.js
   middleware/            # auth, validate (zod), error handler, rate limit
   services/              # business logic (auth, course, classroom, exam, submission, grading, result)
-  routes/                # นิยาม endpoint ตามกลุ่ม
+  routes/                # นิยาม endpoint ตามกลุ่ม (+ docs.routes.js สำหรับ Swagger UI)
   validators/common.js
 prisma/
   schema.prisma          # โมเดลฐานข้อมูลทั้งหมด

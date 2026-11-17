@@ -15,6 +15,8 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(10),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  /// เปิด Swagger UI — ไม่ใส่ = เปิดใน dev/test, ปิดใน production
+  DOCS_ENABLED: z.enum(['true', 'false']).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -33,3 +35,6 @@ export const corsOrigins = env.CORS_ORIGIN.split(',')
   .filter(Boolean);
 
 export const isProduction = env.NODE_ENV === 'production';
+
+/** เปิดเอกสาร Swagger UI หรือไม่ (ค่าเริ่มต้น: เปิดทุกโหมดยกเว้น production) */
+export const docsEnabled = env.DOCS_ENABLED ? env.DOCS_ENABLED === 'true' : !isProduction;

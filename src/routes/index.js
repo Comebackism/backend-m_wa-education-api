@@ -14,6 +14,7 @@ router.get('/', (req, res) => {
     name: 'wa-education-api',
     version: '0.1.0',
     docs: 'see README.md',
+    swagger: '/api/docs',
     endpoints: {
       auth: '/api/auth',
       courses: '/api/courses',
