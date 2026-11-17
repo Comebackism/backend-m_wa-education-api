@@ -27,7 +27,7 @@ REST API สำหรับระบบจัดการเรียนกา�
 
 | ส่วน | เทคโนโลยี |
 | :--- | :--- |
-| Runtime | Node.js ≥ 20.19 (ESM, `"type": "module"`) |
+| Runtime | Node.js 24.18.0 (ESM, `"type": "module"`) |
 | Web framework | Express 5 |
 | ORM | Prisma 7 (`@prisma/client` + `@prisma/adapter-pg`) |
 | Database | PostgreSQL |
@@ -112,6 +112,9 @@ Course (รายวิชา)
 ---
 
 ## 🚀 เริ่มต้นใช้งาน (Getting Started)
+
+> **ต้องใช้ Node.js 24.18.0** — ระบุไว้ใน `.nvmrc` และ `package.json` → `engines`
+> ถ้าใช้ nvm ให้รัน `nvm use` (หรือ `nvm install` ครั้งแรก) แล้วเช็ค `node -v` ต้องขึ้น `v24.18.0`
 
 ### 1. ติดตั้ง dependencies
 
