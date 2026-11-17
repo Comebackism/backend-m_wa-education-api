@@ -3,6 +3,8 @@ import { ApiError } from '../lib/errors.js';
 import { getOwnedExam, getOwnedSubmission } from '../lib/access.js';
 import { recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeSubmission, toNumber } from '../lib/serialize.js';
+import { emitToUser, emitToUsers } from '../realtime/emit.js';
+import { RealtimeEvent } from '../realtime/events.js';
 
 const studentSelect = { select: { id: true, fullName: true, email: true, studentCode: true } };
 
@@ -102,6 +104,13 @@ export async function gradeAnswer(teacherId, answerId, payload) {
   // คิดคะแนน + สถานะใหม่ทันที (ตรวจครบเมื่อไรก็เป็น GRADED + ได้เกรดเลย)
   await recalculateSubmission(answer.submissionId);
 
+  // แจ้งครูด้วยกันเอง (แท็บ/อุปกรณ์อื่น) ให้รีเฟรชความคืบหน้าการตรวจ
+  emitToUser(teacherId, RealtimeEvent.SUBMISSION_GRADED, {
+    examId: answer.submission.examId,
+    submissionId: answer.submissionId,
+    answerId,
+  });
+
   return getSubmissionDetail(teacherId, answer.submissionId);
 }
 
@@ -115,10 +124,18 @@ export async function releaseSubmission(teacherId, submissionId) {
 
   await recalculateSubmission(submissionId);
 
-  return serializeSubmission(await prisma.submission.update({
+  const released = serializeSubmission(await prisma.submission.update({
     where: { id: submissionId },
     data: { status: 'RELEASED', releasedAt: new Date() },
   }));
+
+  // แจ้งนักเรียนทันทีว่าดูผลได้แล้ว (ก่อนหน้านี้จะถูกซ่อนไว้)
+  emitToUser(submission.studentId, RealtimeEvent.RESULT_RELEASED, {
+    examId: submission.examId,
+    submissionId,
+  });
+
+  return released;
 }
 
 /** ปล่อยผลทั้งชุดข้อสอบ (เฉพาะคนที่ตรวจครบแล้ว) */
@@ -127,7 +144,7 @@ export async function releaseExamResults(teacherId, examId) {
 
   const candidates = await prisma.submission.findMany({
     where: { examId, status: { in: ['SUBMITTED', 'GRADED'] } },
-    select: { id: true, answers: { select: { isCorrect: true } } },
+    select: { id: true, studentId: true, answers: { select: { isCorrect: true } } },
   });
 
   const ready = candidates.filter((submission) => submission.answers.every((answer) => answer.isCorrect !== null));
@@ -141,6 +158,9 @@ export async function releaseExamResults(teacherId, examId) {
     where: { id: { in: ready.map((submission) => submission.id) } },
     data: { status: 'RELEASED', releasedAt: new Date() },
   });
+
+  // แจ้งนักเรียนทุกคนที่ถูกปล่อยผลในรอบนี้
+  emitToUsers(ready.map((submission) => submission.studentId), RealtimeEvent.RESULT_RELEASED, { examId });
 
   return { released: result.count, skipped, message: skipped > 0 ? `ปล่อยผลแล้ว ${result.count} คน (ข้าม ${skipped} คนที่ยังตรวจไม่ครบ)` : `ปล่อยผลแล้ว ${result.count} คน` };
 }

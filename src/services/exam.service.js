@@ -2,6 +2,8 @@ import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam } from '../lib/access.js';
 import { recalculateExamTotals, recalculateSubmission } from '../lib/grading.js';
+import { emitToUsers } from '../realtime/emit.js';
+import { RealtimeEvent } from '../realtime/events.js';
 
 /** เกณฑ์ตัดเกรดมาตรฐาน A–F (เปอร์เซ็นต์) — ใช้เมื่อครูไม่ได้กำหนดเอง */
 export const DEFAULT_CUTOFFS = [
@@ -302,7 +304,21 @@ export async function publishExam(teacherId, examId) {
     });
   }
 
-  return prisma.exam.update({ where: { id: examId }, data: { status: 'PUBLISHED' } });
+  const published = await prisma.exam.update({ where: { id: examId }, data: { status: 'PUBLISHED' } });
+
+  // แจ้งนักเรียนที่อยู่ในห้องซึ่งถูกมอบหมาย (เฉพาะตอนเปิดสอบครั้งแรก)
+  if (exam.status !== 'PUBLISHED') {
+    const assignments = await prisma.examAssignment.findMany({
+      where: { examId },
+      select: { classroom: { select: { enrollments: { select: { studentId: true } } } } },
+    });
+    const studentIds = assignments.flatMap((assignment) =>
+      assignment.classroom.enrollments.map((enrollment) => enrollment.studentId),
+    );
+    emitToUsers(studentIds, RealtimeEvent.EXAM_PUBLISHED, { examId, title: published.title });
+  }
+
+  return published;
 }
 
 export async function closeExam(teacherId, examId) {

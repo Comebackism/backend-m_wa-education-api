@@ -16,6 +16,7 @@ REST API สำหรับระบบจัดการเรียนกา�
 - [เริ่มต้นใช้งาน (Getting Started)](#-เริ่มต้นใช้งาน-getting-started)
 - [บัญชีทดลอง (Demo Data)](#-บัญชีทดลอง-demo-data)
 - [เอกสาร API (Swagger UI)](#-เอกสาร-api-swagger-ui)
+- [Realtime (Socket.IO)](#-realtime-socketio)
 - [ภาพรวม API](#-ภาพรวม-api)
 - [โครงสร้างโปรเจกต์](#-โครงสร้างโปรเจกต์)
 - [เอกสารออกแบบ (Diagrams)](#-เอกสารออกแบบ-diagrams)
@@ -33,6 +34,7 @@ REST API สำหรับระบบจัดการเรียนกา�
 | Validation | Zod 4 |
 | Auth | JWT (access + refresh token rotation), bcryptjs |
 | Security | helmet, CORS allow-list, express-rate-limit |
+| Realtime | Socket.IO 4 (แจ้งเตือนการเปลี่ยนแปลงแบบทันที) |
 | เอกสาร API | Swagger UI (`swagger-ui-express`) + OpenAPI 3.0 |
 | Logging | morgan |
 
@@ -221,6 +223,35 @@ npm start      # โหมดปกติ
 
 ---
 
+## 🔌 Realtime (Socket.IO)
+
+นอกจาก REST API ระบบมีชั้น realtime ให้ frontend ใช้แจ้งเตือนการเปลี่ยนแปลงแบบทันที
+(แนบอยู่บนพอร์ตเดียวกัน แยกกันที่ path `/socket.io`) — ยืนยันตัวตนด้วย **access token ตัวเดียวกับ REST**
+
+```js
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:4000', { auth: { token: accessToken } });
+socket.on('connected', (me) => console.log('realtime ready', me));
+```
+
+| Event (server → client) | เกิดเมื่อ | ผู้รับ |
+| :--- | :--- | :--- |
+| `connected` | เชื่อมต่อสำเร็จ | ผู้ที่เชื่อมต่อ |
+| `exam:published` | ครูเปิดสอบ | นักเรียนในห้องที่ถูกมอบหมาย |
+| `submission:submitted` | นักเรียนส่งข้อสอบ | ครูเจ้าของข้อสอบ |
+| `submission:graded` | ครูตรวจอัตนัยเสร็จ 1 ข้อ | ครูเจ้าของข้อสอบ |
+| `result:released` | ครูกด "ส่งผลไปให้นักเรียน" | นักเรียนเจ้าของผลสอบ |
+
+ออกแบบให้ event เป็นแค่ **"สะกิด"** — เมื่อได้รับแล้วให้ไปดึงข้อมูลใหม่ผ่าน REST (ไม่ส่ง state ทั้งก้อนผ่าน socket)
+
+> 📖 รายละเอียดทั้งหมด (ตัวอย่าง Vue, วิธี join ห้อง, `ping/pong`, การสเกลหลาย instance) อยู่ที่
+> [`docs/REALTIME.md`](docs/REALTIME.md)
+>
+> ทดสอบได้ด้วย `npm run test:realtime` (ต้องรันเซิร์ฟเวอร์ค้างไว้ในอีกเทอร์มินัล)
+
+---
+
 ## 🌐 ภาพรวม API
 
 Base path: `/api` — ทุก endpoint (ยกเว้น auth และ `/health`) ต้องแนบ Bearer token
@@ -297,6 +328,7 @@ src/
   server.js              # entrypoint + graceful shutdown
   config/env.js          # โหลดและ validate env ด้วย zod
   docs/openapi.js        # OpenAPI 3.0 spec (ต้นทางของ Swagger UI)
+  realtime/              # Socket.IO: index.js (io + auth), events.js (ชื่อ event), emit.js (ตัวช่วยยิง)
   lib/
     prisma.js            # PrismaClient + @prisma/adapter-pg
     access.js            # helper ตรวจสิทธิ์ (ownership / enrollment)
@@ -312,6 +344,9 @@ prisma/
   migrations/            # SQL migration
   seed.js                # ข้อมูลตัวอย่าง
 prisma.config.js         # Prisma 7 CLI config (datasource + seed)
+scripts/
+  realtime-smoke.mjs     # ทดสอบ Socket.IO end-to-end (npm run test:realtime)
+docs/REALTIME.md         # คู่มือชั้น realtime สำหรับ frontend
 diagrams/                # ER Diagram + Flowcharts (Mermaid)
 docker-compose.yml       # PostgreSQL สำหรับ dev
 ```

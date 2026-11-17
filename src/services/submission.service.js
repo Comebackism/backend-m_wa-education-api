@@ -3,6 +3,8 @@ import { ApiError } from '../lib/errors.js';
 import { getExamForStudent, getOwnStudentSubmission } from '../lib/access.js';
 import { autoGradeAnswer, recalculateSubmission } from '../lib/grading.js';
 import { serializeSubmission } from '../lib/serialize.js';
+import { emitToUser } from '../realtime/emit.js';
+import { RealtimeEvent } from '../realtime/events.js';
 
 const MAX_TEXT_ANSWER_LENGTH = 20000;
 
@@ -145,7 +147,16 @@ export async function submitSubmission(submissionId, studentId, { displayMode } 
     },
   });
 
-  return serializeSubmission(await recalculateSubmission(submissionId));
+  const result = await recalculateSubmission(submissionId);
+
+  // แจ้งครูเจ้าของข้อสอบว่ามีงานส่งเข้ามาใหม่ (ไว้ทำ dashboard "รอตรวจ")
+  emitToUser(exam.teacherId, RealtimeEvent.SUBMISSION_SUBMITTED, {
+    examId: exam.id,
+    submissionId,
+    studentId,
+  });
+
+  return serializeSubmission(result);
 }
 
 /** สถานะการทำข้อสอบของตัวเอง (ไม่มีเฉลย) */
