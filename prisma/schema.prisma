@@ -1,0 +1,301 @@
+/// ---------------------------------------------------------------------------
+/// Online Examination System — PostgreSQL schema
+///
+/// Roles
+///   TEACHER  → author exams & answer keys, manage students, grade, release results
+///   STUDENT  → take exams, see own results only after the teacher releases them
+///
+/// Structure
+///   course → classroom → exam  (an exam is assigned to classrooms)
+/// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  SHORT_ANSWER
+  LONG_ANSWER
+}
+
+/// how the student chose to see the questions (per submission)
+enum DisplayMode {
+  SINGLE_PAGE
+  PAGINATED
+}
+
+enum SubmissionStatus {
+  IN_PROGRESS /// started, not submitted yet
+  SUBMITTED /// "ส่งแล้ว รอตรวจ"
+  GRADED /// teacher finished grading, results not released yet
+  RELEASED /// teacher released the result to the student
+}
+
+// ---------------------------------------------------------------------------
+// Users & auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         Role
+  studentCode  String?  @unique /// รหัสนักเรียน, assigned by the teacher
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  coursesTaught   Course[]       @relation("CourseTeacher")
+  classroomsOwned Classroom[]    @relation("ClassroomTeacher")
+  enrollments     Enrollment[]
+  examsCreated    Exam[]         @relation("ExamTeacher")
+  submissions     Submission[]
+  answersGraded   Answer[]       @relation("AnswerGrader")
+  refreshTokens   RefreshToken[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// course → classroom → enrollment
+// ---------------------------------------------------------------------------
+
+model Course {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String /// e.g. "MATH-M4"
+  title       String
+  description String?
+  teacherId   String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teacher     User        @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  classrooms  Classroom[]
+  exams       Exam[]
+
+  @@unique([teacherId, code])
+  @@index([teacherId])
+  @@map("courses")
+}
+
+model Classroom {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String /// e.g. "ม.4/1 ห้อง 2"
+  joinCode  String   @unique /// students use it to join
+  courseId  String   @db.Uuid
+  teacherId String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher        User             @relation("ClassroomTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  enrollments    Enrollment[]
+  examAssignments ExamAssignment[]
+
+  @@index([courseId])
+  @@index([teacherId])
+  @@map("classrooms")
+}
+
+model Enrollment {
+  id          String   @id @default(uuid()) @db.Uuid
+  classroomId String   @db.Uuid
+  studentId   String   @db.Uuid
+  enrolledAt  DateTime @default(now())
+
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, studentId])
+  @@index([studentId])
+  @@map("enrollments")
+}
+
+// ---------------------------------------------------------------------------
+// exams & questions
+// ---------------------------------------------------------------------------
+
+model Exam {
+  id                 String     @id @default(uuid()) @db.Uuid
+  title              String
+  description        String?
+  status             ExamStatus @default(DRAFT)
+  courseId           String?    @db.Uuid
+  teacherId          String     @db.Uuid
+  timeLimitMinutes   Int? /// null = ไม่จำกัดเวลา
+  defaultDisplayMode DisplayMode @default(SINGLE_PAGE)
+  questionsPerPage   Int        @default(10)
+  totalsPoints       Decimal    @default(0) @db.Decimal(7, 2)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  course      Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  teacher     User             @relation("ExamTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  questions   Question[]
+  cutoffs     GradeCutoff[]
+  assignments ExamAssignment[]
+  submissions Submission[]
+
+  @@index([teacherId])
+  @@index([courseId])
+  @@index([status])
+  @@map("exams")
+}
+
+/// which classrooms can see/take this exam, and when
+model ExamAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  examId        String    @db.Uuid
+  classroomId   String    @db.Uuid
+  availableFrom DateTime?
+  availableTo   DateTime?
+  createdAt     DateTime  @default(now())
+
+  exam      Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, classroomId])
+  @@index([classroomId])
+  @@map("exam_assignments")
+}
+
+model Question {
+  id            String       @id @default(uuid()) @db.Uuid
+  examId        String       @db.Uuid
+  type          QuestionType
+  prompt        String
+  points        Decimal      @db.Decimal(6, 2)
+  order         Int          @default(0)
+  /// reference answer for SHORT_ANSWER / LONG_ANSWER (teacher answers it themselves)
+  referenceText String?
+  explanation   String? /// คำอธิบายเฉลย แสดงหลังปล่อยผล
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  exam    Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  choices Choice[]
+  answers Answer[]
+
+  @@index([examId])
+  @@map("questions")
+}
+
+model Choice {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @db.Uuid
+  label      String /// "A" | "B" | ...
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  Answer[] @relation("AnswerChoice")
+
+  @@unique([questionId, label])
+  @@map("choices")
+}
+
+/// grade cutoff per exam, percentage based (A–F)
+model GradeCutoff {
+  id         String  @id @default(uuid()) @db.Uuid
+  examId     String  @db.Uuid
+  grade      String /// "A" | "B+" | "B" | ... | "F"
+  minPercent Decimal @db.Decimal(5, 2) /// inclusive lower bound of the score %
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, grade])
+  @@index([examId])
+  @@map("grade_cutoffs")
+}
+
+// ---------------------------------------------------------------------------
+// submissions & answers
+// ---------------------------------------------------------------------------
+
+model Submission {
+  id              String           @id @default(uuid()) @db.Uuid
+  examId          String           @db.Uuid
+  studentId       String           @db.Uuid
+  status          SubmissionStatus @default(IN_PROGRESS)
+  displayMode     DisplayMode      @default(SINGLE_PAGE)
+  startedAt       DateTime         @default(now())
+  expiresAt       DateTime? /// startedAt + exam.timeLimitMinutes
+  submittedAt     DateTime?
+  gradedAt        DateTime?
+  releasedAt      DateTime?
+  autoScore       Decimal          @default(0) @db.Decimal(7, 2) /// ปรนัย ตรวจอัตโนมัติ
+  manualScore     Decimal          @default(0) @db.Decimal(7, 2) /// อัตนัย ครูตรวจเอง
+  totalScore      Decimal          @default(0) @db.Decimal(7, 2)
+  percent         Decimal          @default(0) @db.Decimal(5, 2)
+  grade           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  exam    Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@unique([examId, studentId]) /// 1 attempt per student per exam
+  @@index([studentId])
+  @@index([status])
+  @@map("submissions")
+}
+
+model Answer {
+  id            String    @id @default(uuid()) @db.Uuid
+  submissionId  String    @db.Uuid
+  questionId    String    @db.Uuid
+  choiceId      String?   @db.Uuid /// MULTIPLE_CHOICE selection
+  textAnswer    String? /// SHORT_ANSWER / LONG_ANSWER
+  isCorrect     Boolean? /// null = ยังไม่ตรวจ
+  autoGraded    Boolean   @default(false)
+  awardedPoints Decimal?  @db.Decimal(6, 2)
+  /// หมายเหตุของครู: ผิดเพราะอะไร / ถูกเพราะอะไร
+  graderComment String?
+  gradedById    String?   @db.Uuid
+  gradedAt      DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  choice     Choice?    @relation("AnswerChoice", fields: [choiceId], references: [id], onDelete: SetNull)
+  gradedBy   User?      @relation("AnswerGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([submissionId, questionId])
+  @@index([questionId])
+  @@map("answers")
+}

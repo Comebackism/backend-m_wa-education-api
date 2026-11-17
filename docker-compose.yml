@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: wa_education_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wa_education
+    ports:
+      # host port 5433 avoids clashing with a local PostgreSQL on 5432
+      - "5433:5432"
+    volumes:
+      - wa_education_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wa_education"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  wa_education_data:
