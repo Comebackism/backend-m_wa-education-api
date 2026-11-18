@@ -375,10 +375,19 @@ export const openApiDocument = {
       },
       delete: {
         tags: ['Students'],
-        summary: 'ลบบัญชีนักเรียน (teacher)',
-        description: 'คำตอบที่เคยส่งจะถูกลบตาม (cascade)',
+        summary: 'เอานักเรียนออกจากห้องเรียนของครูคนนี้ (teacher)',
+        description:
+          '**ไม่ลบบัญชีและไม่แตะข้อมูลของครูคนอื่น** — เอาเฉพาะ enrollment ในห้องเรียนที่ครูคนนี้เป็นเจ้าของออก ' +
+          'ประวัติการส่งข้อสอบ/คำตอบยังอยู่ครบ · ถ้าต้องการปิดบัญชีให้ใช้ `PATCH` กับ `isActive: false`',
         responses: {
-          ...ok('ลบสำเร็จ', { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } }),
+          ...ok('นำออกสำเร็จ', {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              removedFromClassrooms: { type: 'integer', description: 'จำนวนห้องเรียนที่นำนักเรียนออก' },
+              remainingEnrollments: { type: 'integer', description: 'จำนวนห้องเรียนที่นักเรียนยังอยู่ (รวมของครูคนอื่น)' },
+            },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -691,7 +700,7 @@ export const openApiDocument = {
       get: {
         tags: ['Student — My'],
         summary: 'รายละเอียดข้อสอบสำหรับนักเรียน (ไม่มีเฉลย)',
-        description: 'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้',
+        description: 'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้ · `mySubmission` ไม่มีคะแนน/เกรดจนกว่าจะ `RELEASED`',
         responses: {
           ...ok('กระดาษข้อสอบ', { type: 'object', required: ['exam'], properties: { exam: ref('StudentExam') } }),
           ...pick(401, 403, 404, 500),
@@ -706,7 +715,7 @@ export const openApiDocument = {
         description: 'ถ้าเคยเริ่มไว้และยังไม่ส่ง จะคืนใบเดิม · กำหนด `expiresAt` จาก `timeLimitMinutes` ของข้อสอบ',
         requestBody: { required: false, content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }) },
         responses: {
-          ...created('เริ่มทำสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('Submission') } }),
+          ...created('เริ่มทำสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -715,9 +724,10 @@ export const openApiDocument = {
       parameters: [pathParam('submissionId', 'รหัสการส่งข้อสอบ')],
       get: {
         tags: ['Student — My'],
-        summary: 'สถานะการทำข้อสอบของตัวเอง (ไม่มีเฉลย)',
+        summary: 'สถานะการทำข้อสอบของตัวเอง (ไม่มีเฉลย/คะแนน)',
+        description: 'คะแนน/เกรดจะถูกตัดออกจนกว่าครูจะปล่อยผล (`RELEASED`)',
         responses: {
-          ...ok('สถานะใบตอบ', { type: 'object', required: ['submission'], properties: { submission: ref('Submission') } }),
+          ...ok('สถานะใบตอบ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -766,10 +776,10 @@ export const openApiDocument = {
       post: {
         tags: ['Student — My'],
         summary: 'ส่งข้อสอบ',
-        description: 'ปรนัยตรวจอัตโนมัติทันที · สถานะเป็น `SUBMITTED` ("ส่งแล้ว รอตรวจ") · ส่งซ้ำจะได้ `409`',
+        description: 'ปรนัยตรวจอัตโนมัติทันที แต่ **ยังไม่คืนคะแนน/เกรด** จนกว่าครูจะปล่อยผล (`RELEASED`) · สถานะเป็น `SUBMITTED` ("ส่งแล้ว รอตรวจ") · ส่งซ้ำจะได้ `409`',
         requestBody: { required: false, content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }) },
         responses: {
-          ...ok('ส่งสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('Submission') } }),
+          ...ok('ส่งสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -1170,11 +1180,45 @@ export const openApiDocument = {
           {
             type: 'object',
             properties: {
-              needsGrading: { type: 'boolean' },
+              needsGrading: { type: 'boolean', description: 'true = ยังมีคำตอบที่ isCorrect = null' },
+              ungradedCount: { type: 'integer', description: 'จำนวนข้อที่ยังไม่ได้ตรวจ' },
               student: ref('User'),
             },
           },
         ],
+      },
+      StudentSubmission: {
+        type: 'object',
+        description: 'ใบตอบที่ส่งให้นักเรียน — ฟิลด์คะแนน/เกรดมีเฉพาะเมื่อ status = RELEASED',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          examId: { type: 'string', format: 'uuid' },
+          studentId: { type: 'string', format: 'uuid' },
+          status: ref('SubmissionStatus'),
+          displayMode: ref('DisplayMode'),
+          startedAt: { type: 'string', format: 'date-time' },
+          expiresAt: { type: 'string', format: 'date-time', nullable: true },
+          submittedAt: { type: 'string', format: 'date-time', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          answers: { type: 'array', nullable: true, items: ref('StudentAnswer'), description: 'มีเฉพาะบาง endpoint' },
+          autoScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
+          manualScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
+          totalScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
+          percent: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
+          grade: { type: 'string', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
+          gradedAt: { type: 'string', format: 'date-time', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
+          releasedAt: { type: 'string', format: 'date-time', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
+        },
+      },
+      StudentAnswer: {
+        type: 'object',
+        description: 'คำตอบของนักเรียน — ไม่มีผลตรวจ/คะแนนรายข้อ',
+        properties: {
+          questionId: { type: 'string', format: 'uuid' },
+          choiceId: { type: 'string', format: 'uuid', nullable: true },
+          textAnswer: { type: 'string', nullable: true },
+        },
       },
       Answer: {
         type: 'object',
@@ -1292,7 +1336,7 @@ export const openApiDocument = {
               },
             },
           },
-          mySubmission: { ...ref('Submission'), nullable: true },
+          mySubmission: { ...ref('StudentSubmission'), nullable: true },
         },
       },
       StudentResultListItem: {

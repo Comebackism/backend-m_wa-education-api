@@ -22,13 +22,25 @@ async function generateJoinCode() {
   throw ApiError.conflict('สร้างรหัสห้องเรียนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
 }
 
-function randomPassword(length = 8) {
+function randomPassword(length = 12) {
   const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let password = '';
   for (let index = 0; index < length; index += 1) {
     password += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
   return password;
+}
+
+/**
+ * รหัสผ่านชั่วคราวของนักเรียนใหม่
+ * - ครูระบุเองได้ (ต้องไม่ซ้ำรหัสนักเรียน)
+ * - ไม่ระบุ → สุ่มเสมอ ห้ามใช้ studentCode เป็นรหัสผ่าน
+ */
+function resolveTemporaryPassword(payload) {
+  if (payload.password && payload.password === payload.studentCode) {
+    throw ApiError.badRequest('รหัสผ่านต้องไม่ซ้ำกับรหัสนักเรียน');
+  }
+  return payload.password ?? randomPassword();
 }
 
 /** นักเรียนต้องอยู่ในห้องเรียนของครูคนนี้เท่านั้น */
@@ -114,7 +126,7 @@ export async function addStudentToClassroom(teacherId, classroomId, payload) {
     if (!payload.email || !payload.fullName) {
       throw ApiError.badRequest('ต้องระบุ email และ fullName เมื่อสร้างบัญชีนักเรียนใหม่');
     }
-    temporaryPassword = payload.password ?? payload.studentCode ?? randomPassword();
+    temporaryPassword = resolveTemporaryPassword(payload);
     student = await prisma.user.create({
       data: {
         email: payload.email,
@@ -253,7 +265,7 @@ export async function createStudent(teacherId, payload) {
   const exists = await prisma.user.findUnique({ where: { email: payload.email } });
   if (exists) throw ApiError.conflict('อีเมลนี้ถูกใช้งานแล้ว');
 
-  const temporaryPassword = payload.password ?? payload.studentCode ?? randomPassword();
+  const temporaryPassword = resolveTemporaryPassword(payload);
   const student = await prisma.user.create({
     data: {
       email: payload.email,
@@ -289,11 +301,26 @@ export async function updateStudent(teacherId, studentId, payload) {
   return publicUser(student);
 }
 
-/** ลบบัญชีนักเรียน (ข้อสอบที่ส่งไปแล้วจะถูกลบตามด้วย cascade) */
+/**
+ * "ลบนักเรียน" = เอานักเรียนออกจากทุกห้องเรียนของครูคนนี้เท่านั้น
+ * - ไม่ลบบัญชีผู้ใช้ และไม่แตะข้อมูลของครูคนอื่น
+ * - ประวัติการส่งข้อสอบ/คำตอบยังอยู่ครบ (ตรวจย้อนหลังได้)
+ * ถ้าต้องการปิดการใช้งานบัญชีจริง ๆ ให้ใช้ PATCH /students/:id { isActive: false }
+ */
 export async function deleteStudent(teacherId, studentId) {
   await assertStudentOfTeacher(teacherId, studentId);
-  await prisma.user.delete({ where: { id: studentId } });
-  return { id: studentId };
+
+  const removed = await prisma.enrollment.deleteMany({
+    where: { studentId, classroom: { teacherId } },
+  });
+
+  const remainingEnrollments = await prisma.enrollment.count({ where: { studentId } });
+
+  return {
+    id: studentId,
+    removedFromClassrooms: removed.count,
+    remainingEnrollments,
+  };
 }
 
 export async function resetStudentPassword(teacherId, studentId, newPassword) {

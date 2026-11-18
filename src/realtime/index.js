@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import { corsOrigins, env } from '../config/env.js';
 import { verifyAccessToken } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { RealtimeClientEvent, RealtimeEvent, Room } from './events.js';
 
 /**
@@ -23,7 +24,7 @@ export function initRealtime(httpServer) {
   });
 
   // --- ยืนยันตัวตน (รับ token ได้ทั้ง handshake.auth.token และ Authorization: Bearer) ---
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const authToken = socket.handshake.auth?.token;
     const header = socket.handshake.headers?.authorization;
     const bearer = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -31,13 +32,30 @@ export function initRealtime(httpServer) {
 
     if (!token) return next(new Error('UNAUTHORIZED: ต้องแนบ access token'));
 
+    let payload;
     try {
-      const payload = verifyAccessToken(token);
-      socket.user = { id: payload.sub, role: payload.role, email: payload.email };
-      return next();
+      payload = verifyAccessToken(token);
     } catch {
       return next(new Error('UNAUTHORIZED: token ไม่ถูกต้องหรือหมดอายุ'));
     }
+
+    // เช็คกับ DB เหมือน REST: บัญชีที่ถูกปิด/ลบ ต้องต่อ socket ไม่ได้
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, role: true, email: true, isActive: true },
+      });
+    } catch {
+      return next(new Error('INTERNAL: ตรวจสอบบัญชีไม่สำเร็จ'));
+    }
+
+    if (!user || !user.isActive) {
+      return next(new Error('UNAUTHORIZED: ไม่พบผู้ใช้ หรือบัญชีถูกระงับการใช้งาน'));
+    }
+
+    socket.user = { id: user.id, role: user.role, email: user.email };
+    return next();
   });
 
   io.on('connection', (socket) => {

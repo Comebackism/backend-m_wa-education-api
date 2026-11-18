@@ -46,7 +46,9 @@ REST API + Realtime สำหรับระบบจัดการเรีย
 - จัดการ **รายวิชา (Course)** → **ห้องเรียน (Classroom)** หลายห้องต่อวิชา
 - ห้องเรียนมี **joinCode** ให้เองแบบสุ่มอัตโนมัติ ให้นักเรียนเข้าห้องเองได้
 - จัดการนักเรียน: เพิ่มเข้าห้องด้วย `studentId` / `email` / `studentCode`, สร้างบัญชีใหม่พร้อม
-  **รหัสผ่านชั่วคราว**, แก้ไข, ระงับการใช้งาน, รีเซ็ตรหัสผ่าน, ลบ
+  **รหัสผ่านชั่วคราว**, แก้ไข, ระงับการใช้งาน, รีเซ็ตรหัสผ่าน, เอานักเรียนออกจากห้องของตัวเอง
+  - รหัสผ่านชั่วคราว: ถ้าครูไม่ระบุ ระบบ **สุ่มให้ 12 ตัวอักษร** (ไม่ใช้ `studentCode` เป็นรหัสผ่าน)
+  - "ลบนักเรียน" = เอาเฉพาะ enrollment ในห้องของครูคนนี้ออก ไม่ลบบัญชี/ไม่แตะข้อมูลครูคนอื่น
 - ค้นหานักเรียน/รายวิชาด้วย `?q=` และดูรายชื่อนักเรียนรวมทุกห้อง
 - สร้างข้อสอบ: ปรนัย (MULTIPLE_CHOICE), ตอบสั้น (SHORT_ANSWER), ตอบยาว (LONG_ANSWER)
   กำหนดคะแนนรายข้อเอง, จัดลำดับข้อ, ใส่เฉลยอ้างอิง (referenceText) และคำอธิบายเฉลย (explanation)
@@ -257,12 +259,16 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 - เลือกโหมดแสดงผล `SINGLE_PAGE` / `PAGINATED` ได้ (ค่าเริ่มต้น = `exam.defaultDisplayMode`)
 - บันทึกคำตอบ: `PUT /api/my/submissions/:submissionId/answers` (bulk 1–200 รายการ)
   - บันทึกได้เฉพาะตอน `IN_PROGRESS` และยังไม่หมดเวลา — ไม่งั้น `409`
+  - `save` ล็อกแถว submission ร่วมกับ `submit` → request ที่มาช้าได้ `409` และเขียนทับคำตอบหลังส่งไม่ได้
   - `choiceId` ใช้ได้กับข้อปรนัยเท่านั้น, ข้ออัตนัยห้ามส่ง `choiceId`
   - `textAnswer` ยาวได้ไม่เกิน 20,000 ตัวอักษร
 - ส่งข้อสอบ: `POST /api/my/submissions/:submissionId/submit`
   - ระบบจะสร้าง `Answer` **ครบทุกข้อ** (ข้อที่เว้นว่างก็มี record → ครูเห็นว่าเว้นว่าง)
   - ปรนัยตรวจอัตโนมัติทันที, อัตนัยยัง `isCorrect = null` (รอครูตรวจ)
   - ตั้งสถานะ `SUBMITTED` + `submittedAt` และคำนวณคะแนน แล้วแจ้งครูเจ้าของข้อสอบ
+  - **response ไม่มีคะแนน/เกรด** จนกว่าครูจะปล่อยผล (`RELEASED`)
+  - ใบที่เริ่มทำไว้แล้ว **ยัง submit ได้แม้หมดเวลาหรือข้อสอบถูกปิด** (กันนักเรียนเสียคำตอบ)
+    แต่การบันทึกเพิ่ม/เริ่มใหม่จะถูกบล็อกตามเวลาและสถานะปกติ
 
 ### 4) การตรวจและตัดเกรด
 
@@ -293,6 +299,10 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 - ตอนนักเรียนดูกระดาษข้อสอบ (`GET /api/my/exams/:examId`) ระบบ **ตัดฟิลด์**
   `isCorrect`, `explanation`, `referenceText` และ `points` ออกจาก response ทั้งหมด
   (ข้อปรนัยส่งมาแค่ `{ id, label, text, order }`)
+- **ทุก endpoint ฝั่งนักเรียน** ที่คืน submission (`start`, `GET /api/my/submissions/:id`,
+  `submit`, `GET /api/my/exams/:examId`) จะตัด `autoScore`, `manualScore`, `totalScore`,
+  `percent`, `grade`, `gradedAt`, `releasedAt` ออกจนกว่า `status === 'RELEASED'`
+  (ใช้ whitelist ใน `serializeStudentSubmission` เพื่อกันฟิลด์ใหม่หลุดในอนาคต)
 - ในรายการข้อสอบ (`GET /api/my/exams`) จะโชว์ `totalScore` / `percent` / `grade`
   **เฉพาะใบที่ `RELEASED`** เท่านั้น
 - ในหน้าผลสอบ (`GET /api/my/results`) จะโชว์คะแนนเฉพาะเมื่อ `RELEASED`
@@ -493,7 +503,7 @@ curl http://localhost:4000/health
 | DELETE | `/api/classrooms/:classroomId/students/:studentId` | เอานักเรียนออกจากห้อง |
 | GET | `/api/students` | รายชื่อนักเรียนทั้งหมดของครู (รองรับ `?q=`) |
 | POST | `/api/students` | เพิ่มนักเรียนใหม่ (คืนรหัสผ่านชั่วคราว; แนบ `classroomId` เพื่อเข้าห้องทันที) |
-| PATCH/DELETE | `/api/students/:studentId` | แก้ไข (ชื่อ/อีเมล/รหัส/ระงับการใช้งาน) / ลบ |
+| PATCH/DELETE | `/api/students/:studentId` | แก้ไข (ชื่อ/อีเมล/รหัส/ระงับการใช้งาน) / **เอานักเรียนออกจากทุกห้องของครูคนนี้** (ไม่ลบบัญชี ไม่แตะข้อมูลครูคนอื่น) |
 | POST | `/api/students/:studentId/reset-password` | รีเซ็ตรหัสผ่านนักเรียน (คืนรหัสใหม่) |
 | GET/POST | `/api/exams` | ข้อสอบ: ดูทั้งหมด (รองรับ `?status=&courseId=`) / สร้างใหม่ |
 | GET/PATCH/DELETE | `/api/exams/:examId` | รายละเอียด (รวม submissionStats) / แก้ไข / ลบ (`?force=true` ถ้ามีคนส่งแล้ว) |

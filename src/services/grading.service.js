@@ -13,14 +13,24 @@ export async function listExamSubmissions(teacherId, examId, { status } = {}) {
 
   const submissions = await prisma.submission.findMany({
     where: { examId, ...(status ? { status } : {}) },
-    include: { student: studentSelect },
+    include: {
+      student: studentSelect,
+      // นับจากคำตอบที่ยังไม่ตรวจ (isCorrect = null) ไม่ใช่จาก totalScore
+      // เพราะข้อผสมอาจมีคะแนนปรนัยแล้วแต่ยังเหลืออัตนัยที่ต้องตรวจ
+      _count: { select: { answers: { where: { isCorrect: null } } } },
+    },
     orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
   });
 
   return submissions.map((submission) => {
-    const serialized = serializeSubmission(submission);
-    const ungraded = submission.status === 'SUBMITTED' && toNumber(submission.totalScore) === 0;
-    return { ...serialized, needsGrading: ungraded };
+    const { _count, ...rest } = submission;
+    const ungradedCount = _count.answers;
+    const serialized = serializeSubmission(rest);
+    return {
+      ...serialized,
+      ungradedCount,
+      needsGrading: submission.status === 'SUBMITTED' && ungradedCount > 0,
+    };
   });
 }
 

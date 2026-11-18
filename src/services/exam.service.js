@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam } from '../lib/access.js';
 import { recalculateExamTotals, recalculateSubmission } from '../lib/grading.js';
+import { serializeStudentSubmission } from '../lib/serialize.js';
 import { emitToUsers } from '../realtime/emit.js';
 import { RealtimeEvent } from '../realtime/events.js';
 
@@ -416,6 +417,6 @@ export async function getStudentExamDetail(examId, studentId) {
       choices: question.choices,
       myAnswer: answered.get(question.id) ?? null,
     })),
-    mySubmission: submission,
+    mySubmission: serializeStudentSubmission(submission),
   };
 }
