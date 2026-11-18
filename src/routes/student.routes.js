@@ -28,6 +28,15 @@ const updateStudentBody = z
   })
   .strict();
 
+// แม่แบบ CSV สำหรับนำเข้ารายชื่อนักเรียน (ปุ่ม "ดาวน์โหลดแม่แบบ")
+router.get('/template', (req, res) => {
+  const { filename, content } = classroomService.buildStudentRosterTemplateCsv();
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(content);
+});
+
 // รายชื่อนักเรียนทั้งหมดของครู (รวมทุกห้องเรียน)
 router.get('/', validate({ query: z.object({ q: optionalQueryString }) }), async (req, res) => {
   const students = await classroomService.listTeacherStudents(req.user.id, req.validatedQuery);

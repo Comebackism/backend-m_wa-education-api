@@ -377,6 +377,20 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/students/template': {
+      get: {
+        tags: ['Students'],
+        summary: 'ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้ารายชื่อนักเรียน (teacher)',
+        description: 'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM) · คอลัมน์: `รหัสนักเรียน`, `ชื่อ-นามสกุล`, `อีเมล`, `รหัสผ่าน` (รหัสนักเรียนและรหัสผ่านเว้นว่างได้)',
+        responses: {
+          200: {
+            description: 'ไฟล์แม่แบบ CSV (Content-Disposition: attachment)',
+            content: { 'text/csv': { schema: { type: 'string' } } },
+          },
+          ...pick(401, 403, 500),
+        },
+      },
+    },
     '/api/students/{studentId}': {
       parameters: [pathParam('studentId', 'รหัสนักเรียน')],
       patch: {

@@ -503,6 +503,7 @@ curl http://localhost:4000/health
 | POST | `/api/classrooms/:classroomId/students` | เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+") |
 | DELETE | `/api/classrooms/:classroomId/students/:studentId` | เอานักเรียนออกจากห้อง |
 | GET | `/api/students` | รายชื่อนักเรียนทั้งหมดของครู (รองรับ `?q=`) |
+| GET | `/api/students/template` | ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้ารายชื่อนักเรียน (`รหัสนักเรียน, ชื่อ-นามสกุล, อีเมล, รหัสผ่าน`) |
 | POST | `/api/students` | เพิ่มนักเรียนใหม่ (คืนรหัสผ่านชั่วคราว; แนบ `classroomId` เพื่อเข้าห้องทันที) |
 | PATCH/DELETE | `/api/students/:studentId` | แก้ไข (ชื่อ/อีเมล/รหัส/ระงับการใช้งาน) / **เอานักเรียนออกจากทุกห้องของครูคนนี้** (ไม่ลบบัญชี ไม่แตะข้อมูลครูคนอื่น) |
 | POST | `/api/students/:studentId/reset-password` | รีเซ็ตรหัสผ่านนักเรียน (คืนรหัสใหม่) |

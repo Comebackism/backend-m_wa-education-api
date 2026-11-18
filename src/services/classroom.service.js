@@ -104,6 +104,21 @@ export async function listStudents(classroomId) {
 const CSV_STUDENT_HEADERS = ['ลำดับ', 'รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'สถานะบัญชี', 'วันที่เข้าห้อง'];
 
 /**
+ * คอลัมน์ของแม่แบบนำเข้ารายชื่อนักเรียน (ตรงกับที่ต้องใช้ตอนนำเข้า)
+ * - รหัสนักเรียน: เว้นว่างได้ ระบบจะไม่ผูกให้
+ * - รหัสผ่าน: เว้นว่างได้ ระบบจะสุ่มให้แล้วคืนค่ากลับมา
+ */
+const CSV_STUDENT_TEMPLATE_HEADERS = ['รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'รหัสผ่าน'];
+
+/** แม่แบบ CSV ว่างสำหรับกรอกรายชื่อนักเรียน (ปุ่ม "ดาวน์โหลดแม่แบบ") */
+export function buildStudentRosterTemplateCsv() {
+  return {
+    filename: 'student_roster_template.csv',
+    content: toCsv(CSV_STUDENT_TEMPLATE_HEADERS, []),
+  };
+}
+
+/**
  * ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (สำหรับครู) — เปิดใน Excel ได้ทันที (UTF-8 BOM)
  */
 export async function exportClassroomStudentsCsv(teacherId, classroomId) {
