@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, teacherOnly } from '../middleware/auth.js';
+import { uploadSingleFile } from '../middleware/upload.js';
+import { ApiError } from '../lib/errors.js';
 import { booleanQuery, idParams, uuid } from '../validators/common.js';
 import { DEFAULT_CUTOFFS } from '../services/exam.service.js';
 import * as examService from '../services/exam.service.js';
@@ -77,6 +79,15 @@ router.get('/default-cutoffs', (req, res) => {
   res.json({ cutoffs: DEFAULT_CUTOFFS });
 });
 
+// แม่แบบ CSV สำหรับนำเข้าข้อคำถาม (ปุ่ม "นำเข้าข้อสอบจากไฟล์" → ดาวน์โหลดแม่แบบ)
+router.get('/questions/import-template', (req, res) => {
+  const { filename, content } = examService.buildQuestionImportTemplateCsv();
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(content);
+});
+
 router.get('/:examId', validate({ params: idParams('examId') }), async (req, res) => {
   const exam = await examService.getExamDetail(req.user.id, req.params.examId);
   res.json({ exam });
@@ -132,6 +143,26 @@ router.put(
   async (req, res) => {
     const questions = await examService.reorderQuestions(req.user.id, req.params.examId, req.body.items);
     res.json({ questions });
+  },
+);
+
+// นำเข้าข้อคำถามจากไฟล์ CSV / .xlsx (multipart, ฟิลด์ชื่อ "file")
+// ?dryRun=true → ตรวจไฟล์และพรีวิวโดยไม่บันทึก
+router.post(
+  '/:examId/questions/import',
+  validate({ params: idParams('examId'), query: z.object({ dryRun: booleanQuery }) }),
+  uploadSingleFile('file'),
+  async (req, res) => {
+    if (!req.file) throw ApiError.badRequest('ต้องแนบไฟล์ในฟิลด์ "file" (.csv หรือ .xlsx)');
+
+    const result = await examService.importQuestionsFromFile(
+      req.user.id,
+      req.params.examId,
+      { buffer: req.file.buffer, filename: req.file.originalname },
+      { dryRun: req.validatedQuery?.dryRun === true },
+    );
+
+    res.status(result.dryRun ? 200 : 201).json(result);
   },
 );
 

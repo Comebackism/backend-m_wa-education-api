@@ -52,6 +52,8 @@ REST API + Realtime สำหรับระบบจัดการเรีย
 - ค้นหานักเรียน/รายวิชาด้วย `?q=` และดูรายชื่อนักเรียนรวมทุกห้อง
 - สร้างข้อสอบ: ปรนัย (MULTIPLE_CHOICE), ตอบสั้น (SHORT_ANSWER), ตอบยาว (LONG_ANSWER)
   กำหนดคะแนนรายข้อเอง, จัดลำดับข้อ, ใส่เฉลยอ้างอิง (referenceText) และคำอธิบายเฉลย (explanation)
+- **นำเข้าข้อคำถามทีละหลายข้อจากไฟล์ CSV / Excel (.xlsx)** — ดาวน์โหลดแม่แบบได้จากระบบ
+  ตรวจทุกแถวก่อนแบบ all-or-nothing (ผิดจะบอกเลขแถวให้แก้ ไม่บันทึกบางส่วน) และมี `?dryRun=true` ให้พรีวิวก่อนบันทึกจริง
 - กำหนด **เกณฑ์ตัดเกรด A–F** แบบเปอร์เซ็นต์ (มีชุดมาตรฐานให้เป็นค่าเริ่มต้น)
 - **มอบหมายข้อสอบให้ห้องเรียน** พร้อมกำหนดช่วงเวลาเปิด–ปิดของแต่ละห้อง
 - เปิด/ปิดสอบ (DRAFT → PUBLISHED → CLOSED)
@@ -93,6 +95,7 @@ REST API + Realtime สำหรับระบบจัดการเรีย
 | Security | `helmet`, CORS allow-list, `express-rate-limit` | |
 | Realtime | Socket.IO **4** | path `/socket.io` บน HTTP server ตัวเดียวกับ REST |
 | เอกสาร API | `swagger-ui-express` + OpenAPI 3.0 | spec เก็บใน `src/docs/openapi.js` |
+| นำเข้าไฟล์ | `multer` (รับไฟล์) + `csv-parse` + `exceljs` | CSV / Excel สำหรับนำเข้าข้อคำถาม |
 | Logging | `morgan` | `dev` ตอนพัฒนา / `combined` ตอน production |
 
 ### ภาพรวมสถาปัตยกรรม
@@ -237,6 +240,11 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 - ข้ออัตนัย (`SHORT_ANSWER` / `LONG_ANSWER`) ใช้ `referenceText` เป็นคำตอบอ้างอิง (ครูตอบเอง) และมี `explanation` ได้
 - `points` ต่อข้อต้องมากกว่า 0 (ไม่เกิน 1000) — `exam.totalsPoints` ถูกคำนวณใหม่ให้อัตโนมัติทุกครั้งที่เพิ่ม/แก้/ลบข้อ
 - จัดลำดับข้อได้ด้วย `PUT /api/exams/:examId/questions/order`
+- **นำเข้าข้อคำถามจากไฟล์:** `POST /api/exams/:examId/questions/import` (multipart ฟิลด์ `file`, `.csv`/`.xlsx` ≤ 5 MB, ≤ 500 ข้อ/ครั้ง)
+  - โครงไฟล์เหมือนแม่แบบจาก `GET /api/exams/questions/import-template` (1 แถว = 1 ข้อ) · อ่าน CSV ได้ทั้ง UTF-8 และ Excel ANSI/CP874 (ภาษาไทยไม่เพี้ยน)
+  - ตรวจ **ทุกแถวก่อน** แบบ all-or-nothing: ถ้ามีแถวผิดจะไม่บันทึกสักข้อ แล้วคืน `error.details = [{ row, message }]` (HTTP `400`)
+  - `?dryRun=true` → ตรวจและพรีวิวโดยไม่บันทึก (HTTP `200`) · ทำได้เฉพาะชุดข้อสอบสถานะ `DRAFT` (ไม่งั้น `409`)
+  - นำเข้าซ้ำได้เรื่อย ๆ — ลำดับข้อจะ **ต่อจากข้อสุดท้าย** และ `totalsPoints` ถูกคำนวณใหม่ให้อัตโนมัติ
 - **เกณฑ์ตัดเกรด:** ใส่เกรดซ้ำกันไม่ได้ (`400`) และการเปลี่ยนเกณฑ์จะ **คำนวณเกรดของทุกใบที่ส่งแล้วใหม่ทันที**
 - **ลบข้อสอบ** ที่มีการส่งคำตอบแล้วจะถูกบล็อก (`409`) — ต้องส่ง `?force=true` ถ้าต้องการลบจริง
 - **ลบห้องเรียน** ที่มีข้อสอบซึ่งมีการส่งคำตอบแล้วจะถูกบล็อก (`409`) เพื่อไม่ให้ประวัติคะแนนหาย
@@ -511,9 +519,11 @@ curl http://localhost:4000/health
 | GET/PATCH/DELETE | `/api/exams/:examId` | รายละเอียด (รวม submissionStats) / แก้ไข / ลบ (`?force=true` ถ้ามีคนส่งแล้ว) |
 | POST | `/api/exams/:examId/publish` \| `/close` | เปิด / ปิดการสอบ |
 | GET | `/api/exams/default-cutoffs` | เกณฑ์ตัดเกรดมาตรฐาน A–F (ค่าเริ่มต้นของฟอร์ม) |
+| GET | `/api/exams/questions/import-template` | ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้าข้อคำถาม (`ประเภท, โจทย์, คะแนน, ตัวเลือก A–D, เฉลย, คำตอบอ้างอิง, คำอธิบาย`) |
 | POST | `/api/exams/:examId/questions` | เพิ่มข้อคำถาม (ปรนัย/อัตนัย + คะแนน) |
 | PATCH/DELETE | `/api/exams/:examId/questions/:questionId` | แก้ไข / ลบข้อคำถาม |
 | PUT | `/api/exams/:examId/questions/order` | จัดลำดับข้อคำถาม (ส่ง `items: [{ id, order }]`) |
+| POST | `/api/exams/:examId/questions/import` | นำเข้าข้อคำถามจากไฟล์ CSV / `.xlsx` (multipart ฟิลด์ `file`; `?dryRun=true` = ตรวจ+พรีวิวโดยไม่บันทึก; ทำได้เฉพาะ `DRAFT`) |
 | GET/PUT | `/api/exams/:examId/cutoffs` | ดู / กำหนดเกณฑ์ตัดเกรด A–F (แทนที่ทั้งชุด) |
 | POST | `/api/exams/:examId/assignments` | มอบหมายข้อสอบให้ห้องเรียน (+ ช่วงเวลาเปิด/ปิด) |
 | DELETE | `/api/exams/:examId/assignments/:assignmentId` | ยกเลิกการมอบหมาย |
@@ -728,9 +738,11 @@ src/
     errors.js            # ApiError + publicUser()
     serialize.js         # แปลง Prisma Decimal → number ก่อนส่ง JSON
     csv.js               # สร้าง CSV ปลอดภัย (escape + กัน formula injection + BOM)
+    questionImport.js    # อ่าน/ตรวจไฟล์ CSV–Excel ที่นำเข้าข้อคำถาม (แยกจาก DB เพื่อเทสต์ง่าย)
   middleware/
     auth.js              # authenticate + requireRole/teacherOnly/studentOnly
     validate.js          # ตรวจ params/body/query ด้วย zod
+    upload.js            # multer (memory storage) รับไฟล์นำเข้า + แปลง error เป็น ApiError
     error.js             # notFoundHandler + errorHandler (รวม map Prisma error)
     rateLimit.js         # loginLimiter / registerLimiter
   services/              # business logic
@@ -880,6 +892,9 @@ npm run test:realtime
 - Realtime แบบ multi-instance ต้องเพิ่ม adapter กลาง เช่น `@socket.io/redis-adapter`
   (ห้อง `user:<id>` จะไม่ข้าม process กันเอง)
 - ยังไม่มี automated test suite (unit/integration) นอกเหนือจาก realtime smoke test
+- **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 ข้อต่อครั้ง
+- **นำเข้ารายชื่อนักเรียน** ทำได้แค่ดาวน์โหลดแม่แบบ (`GET /api/students/template`) — ยังไม่มี endpoint รับไฟล์นำเข้าเป็นชุด
+- ยังไม่มี **คลังข้อคำถาม (Question Bank)** แยกจากชุดข้อสอบ (สคีมาผูก `Question` เข้ากับ `Exam` เสมอ)
 
 ---
 

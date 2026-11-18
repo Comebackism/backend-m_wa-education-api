@@ -471,6 +471,24 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/exams/questions/import-template': {
+      get: {
+        tags: ['Exams'],
+        summary: 'ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้าข้อคำถาม (teacher)',
+        description:
+          'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM) · 1 แถว = 1 ข้อ ความกว้างคงที่ 10 คอลัมน์: ' +
+          '`ประเภท`, `โจทย์`, `คะแนน`, `ตัวเลือก A`–`ตัวเลือก D`, `เฉลย`, `คำตอบอ้างอิง`, `คำอธิบาย` · ' +
+          'คอลัมน์ `ประเภท` ใส่ `ปรนัย` / `อัตนัย` / `อัตนัยยาว` (หรือ `MULTIPLE_CHOICE` / `SHORT_ANSWER` / `LONG_ANSWER`) และเว้นว่างได้ (ระบบเดาให้จากตัวเลือกที่มี) · ' +
+          '`เฉลย` ใส่ `A`–`D` (จำเป็นเฉพาะข้อปรนัย)',
+        responses: {
+          200: {
+            description: 'ไฟล์แม่แบบ CSV (Content-Disposition: attachment)',
+            content: { 'text/csv': { schema: { type: 'string' } } },
+          },
+          ...pick(401, 403, 500),
+        },
+      },
+    },
     '/api/exams/{examId}': {
       parameters: [pathParam('examId', 'รหัสข้อสอบ')],
       get: {
@@ -557,6 +575,77 @@ export const openApiDocument = {
         responses: {
           ...ok('จัดลำดับสำเร็จ', { type: 'object', required: ['questions'], properties: { questions: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, order: { type: 'integer' } } } } } }),
           ...pick(400, 401, 403, 404, 500),
+        },
+      },
+    },
+    '/api/exams/{examId}/questions/import': {
+      parameters: [pathParam('examId', 'รหัสข้อสอบ')],
+      post: {
+        tags: ['Exams'],
+        summary: 'นำเข้าข้อคำถามจากไฟล์ CSV / Excel (teacher)',
+        description:
+          'อัปโหลดแบบ `multipart/form-data` ฟิลด์ชื่อ `file` (`.csv` หรือ `.xlsx`, ไม่เกิน 5 MB) · ' +
+          'โครงไฟล์เหมือนแม่แบบจาก `GET /api/exams/questions/import-template` (1 แถว = 1 ข้อ) · ' +
+          'ตรวจทุกแถวก่อนแบบ all-or-nothing: ถ้ามีแถวผิดจะไม่นำเข้าสักข้อ แล้วคืน `error.details` เป็น `[{ row, message }]` ให้แก้ · ' +
+          'ทำได้เฉพาะชุดข้อสอบสถานะ `DRAFT` · `?dryRun=true` = ตรวจและพรีวิวโดยไม่บันทึก (HTTP 200)',
+        parameters: [
+          { name: 'dryRun', in: 'query', required: false, description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก', schema: { type: 'string', enum: ['true', 'false'] } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: { type: 'string', format: 'binary', description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          ...created('นำเข้าสำเร็จ', {
+            type: 'object',
+            required: ['examId', 'imported', 'incomingPoints', 'totalsPoints'],
+            properties: {
+              examId: { type: 'string', format: 'uuid' },
+              dryRun: { type: 'boolean', enum: [false] },
+              imported: { type: 'integer', description: 'จำนวนข้อที่สร้างจริง' },
+              incomingPoints: { type: 'number', description: 'คะแนนรวมของข้อที่นำเข้า' },
+              totalsPoints: { type: 'number', description: 'คะแนนเต็มใหม่ของข้อสอบ' },
+              questions: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, type: { type: 'string' }, prompt: { type: 'string' }, points: { type: 'number' }, order: { type: 'integer' } } } },
+            },
+          }),
+          ...ok('ผลการตรวจ (dryRun)', {
+            type: 'object',
+            required: ['dryRun', 'wouldImport'],
+            properties: {
+              examId: { type: 'string', format: 'uuid' },
+              dryRun: { type: 'boolean', enum: [true] },
+              imported: { type: 'integer', enum: [0] },
+              wouldImport: { type: 'integer' },
+              incomingPoints: { type: 'number' },
+              totalsPoints: { type: 'number', description: 'คะแนนเต็มปัจจุบัน' },
+              totalsPointsAfter: { type: 'number', description: 'คะแนนเต็มถ้านำเข้าจริง' },
+              preview: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    index: { type: 'integer' },
+                    type: { type: 'string' },
+                    prompt: { type: 'string' },
+                    points: { type: 'number' },
+                    choices: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, text: { type: 'string' }, isCorrect: { type: 'boolean' } } } },
+                  },
+                },
+              },
+            },
+          }),
+          400: { description: 'ไฟล์ไม่ถูกต้อง / มีแถวผิด (ดูรายละเอียดใน `error.details`) / ไม่ได้แนบไฟล์', content: json(ref('Error')) },
+          ...pick(401, 403, 404, 409, 500),
         },
       },
     },

@@ -1,8 +1,10 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam } from '../lib/access.js';
-import { recalculateExamTotals, recalculateSubmission } from '../lib/grading.js';
-import { serializeStudentSubmission } from '../lib/serialize.js';
+import { recalculateExamTotals, recalculateSubmission, round2 } from '../lib/grading.js';
+import { serializeStudentSubmission, toNumber } from '../lib/serialize.js';
+import { toCsv } from '../lib/csv.js';
+import { QUESTION_IMPORT_HEADERS, readQuestionImportFile } from '../lib/questionImport.js';
 import { emitToUsers } from '../realtime/emit.js';
 import { RealtimeEvent } from '../realtime/events.js';
 
@@ -211,6 +213,100 @@ export async function deleteQuestion(teacherId, examId, questionId) {
 
   await recalculateExamTotals(examId);
   return { id: questionId };
+}
+
+/** ไฟล์แม่แบบ CSV สำหรับนำเข้าข้อคำถาม (คอลัมน์ตรงกับ readQuestionImportFile) */
+export function buildQuestionImportTemplateCsv() {
+  return {
+    filename: 'exam-questions-template.csv',
+    content: toCsv(QUESTION_IMPORT_HEADERS, []),
+  };
+}
+
+/**
+ * นำเข้าข้อคำถามจากไฟล์ CSV / .xlsx
+ * - เฉพาะชุดข้อสอบสถานะ DRAFT (กันแก้ชุดที่กำลังสอบอยู่)
+ * - ตรวจทุกแถวก่อน: ถ้ามีแถวผิดจะไม่นำเข้าสักข้อ (all-or-nothing) แล้วคืนเลขแถวที่ผิดให้แก้
+ * - dryRun = true → ตรวจและสรุปผลโดยไม่บันทึก (ให้ครูตรวจไฟล์ก่อน)
+ */
+export async function importQuestionsFromFile(teacherId, examId, { buffer, filename }, { dryRun = false } = {}) {
+  const exam = await getOwnedExam(teacherId, examId);
+
+  if (exam.status !== 'DRAFT') {
+    throw ApiError.conflict('นำเข้าข้อคำถามได้เฉพาะชุดข้อสอบสถานะ DRAFT — กรุณานำเข้าให้เสร็จก่อนเผยแพร่');
+  }
+
+  const { questions, errors } = await readQuestionImportFile(buffer, filename);
+  if (errors.length > 0) {
+    throw ApiError.badRequest(`ไฟล์มีข้อผิดพลาด ${errors.length} แถว — ยังไม่นำเข้าข้อใดเลย`, errors);
+  }
+
+  const currentTotals = toNumber(exam.totalsPoints);
+  const incomingPoints = round2(questions.reduce((sum, question) => sum + question.points, 0));
+
+  if (dryRun) {
+    return {
+      examId,
+      dryRun: true,
+      imported: 0,
+      wouldImport: questions.length,
+      incomingPoints,
+      totalsPoints: currentTotals,
+      totalsPointsAfter: round2(currentTotals + incomingPoints),
+      preview: questions.map((question, index) => ({
+        index: index + 1,
+        type: question.type,
+        prompt: question.prompt,
+        points: question.points,
+        choices:
+          question.choices?.map((choice) => ({
+            label: choice.label,
+            text: choice.text,
+            isCorrect: choice.isCorrect,
+          })) ?? [],
+      })),
+    };
+  }
+
+  // ต่อลำดับจากข้อสุดท้ายของชุดนี้
+  const last = await prisma.question.findFirst({
+    where: { examId },
+    orderBy: { order: 'desc' },
+    select: { order: true },
+  });
+  let order = last?.order ?? 0;
+
+  const created = await prisma.$transaction(
+    questions.map((question) => {
+      order += 1;
+      return prisma.question.create({
+        data: {
+          examId,
+          type: question.type,
+          prompt: question.prompt,
+          points: question.points,
+          order,
+          referenceText: question.referenceText,
+          explanation: question.explanation,
+          ...(question.choices ? { choices: { create: question.choices } } : {}),
+        },
+        select: { id: true, type: true, prompt: true, points: true, order: true },
+      });
+    }),
+  );
+
+  await recalculateExamTotals(examId);
+
+  const updated = await prisma.exam.findUnique({ where: { id: examId }, select: { totalsPoints: true } });
+
+  return {
+    examId,
+    dryRun: false,
+    imported: created.length,
+    incomingPoints,
+    totalsPoints: toNumber(updated?.totalsPoints),
+    questions: created.map((question) => ({ ...question, points: toNumber(question.points) })),
+  };
 }
 
 export async function reorderQuestions(teacherId, examId, items) {
