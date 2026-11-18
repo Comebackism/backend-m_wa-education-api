@@ -23,7 +23,11 @@ export function serializeQuestion(question) {
   };
 }
 
-export function serializeSubmission(submission) {
+/**
+ * Submission ที่ส่งให้ครู — เห็นคะแนนได้ทุกฟิลด์
+ * (คนละหน้าที่กับ serializeStudentSubmission ด้านล่าง ซึ่งซ่อนคะแนน)
+ */
+export function serializeTeacherSubmission(submission) {
   return decimalFields(submission, ['autoScore', 'manualScore', 'totalScore', 'percent']);
 }
 

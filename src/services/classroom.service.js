@@ -305,9 +305,10 @@ export async function updateStudent(teacherId, studentId, payload) {
  * "ลบนักเรียน" = เอานักเรียนออกจากทุกห้องเรียนของครูคนนี้เท่านั้น
  * - ไม่ลบบัญชีผู้ใช้ และไม่แตะข้อมูลของครูคนอื่น
  * - ประวัติการส่งข้อสอบ/คำตอบยังอยู่ครบ (ตรวจย้อนหลังได้)
+ * ชื่อฟังก์ชันสื่อตรงกับสิ่งที่ทำ (unenroll) แม้ route จะยังเป็น DELETE /students/:id
  * ถ้าต้องการปิดการใช้งานบัญชีจริง ๆ ให้ใช้ PATCH /students/:id { isActive: false }
  */
-export async function deleteStudent(teacherId, studentId) {
+export async function removeStudentFromTeacherClassrooms(teacherId, studentId) {
   await assertStudentOfTeacher(teacherId, studentId);
 
   const removed = await prisma.enrollment.deleteMany({

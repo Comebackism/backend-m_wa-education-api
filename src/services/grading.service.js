@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { getOwnedExam, getOwnedSubmission } from '../lib/access.js';
 import { recalculateSubmission, round2 } from '../lib/grading.js';
-import { serializeSubmission, toNumber } from '../lib/serialize.js';
+import { serializeTeacherSubmission, toNumber } from '../lib/serialize.js';
 import { emitToUser, emitToUsers } from '../realtime/emit.js';
 import { RealtimeEvent } from '../realtime/events.js';
 
@@ -25,7 +25,7 @@ export async function listExamSubmissions(teacherId, examId, { status } = {}) {
   return submissions.map((submission) => {
     const { _count, ...rest } = submission;
     const ungradedCount = _count.answers;
-    const serialized = serializeSubmission(rest);
+    const serialized = serializeTeacherSubmission(rest);
     return {
       ...serialized,
       ungradedCount,
@@ -50,7 +50,7 @@ export async function getSubmissionDetail(teacherId, submissionId) {
   const ungradedCount = submission.answers.filter((answer) => answer.isCorrect === null).length;
 
   return {
-    ...serializeSubmission(submission),
+    ...serializeTeacherSubmission(submission),
     ungradedCount,
     answers: submission.answers.map((answer) => ({
       id: answer.id,
@@ -134,7 +134,7 @@ export async function releaseSubmission(teacherId, submissionId) {
 
   await recalculateSubmission(submissionId);
 
-  const released = serializeSubmission(await prisma.submission.update({
+  const released = serializeTeacherSubmission(await prisma.submission.update({
     where: { id: submissionId },
     data: { status: 'RELEASED', releasedAt: new Date() },
   }));

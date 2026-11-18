@@ -50,7 +50,7 @@ router.patch(
 );
 
 router.delete('/:studentId', validate({ params: idParams('studentId') }), async (req, res) => {
-  const result = await classroomService.deleteStudent(req.user.id, req.params.studentId);
+  const result = await classroomService.removeStudentFromTeacherClassrooms(req.user.id, req.params.studentId);
   res.json(result);
 });
 

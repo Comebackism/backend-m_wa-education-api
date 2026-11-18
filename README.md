@@ -768,7 +768,7 @@ Prisma 7 เปลี่ยนวิธีทำงานหลายอย่�
 - `prisma generate` / `prisma db seed` **ต้องรันเอง** (ไม่ทำงานอัตโนมัติหลัง migrate)
   seed ถูกกำหนดไว้ที่ `prisma.config.js → migrations.seed = 'node prisma/seed.js'`
 - ค่า `Decimal` จาก Prisma จะถูกส่งเป็น string ใน JSON — โปรเจกต์แปลงเป็น `number` ให้ก่อนส่งด้วย
-  helper ใน `src/lib/serialize.js` (`toNumber`, `serializeSubmission`, …)
+  helper ใน `src/lib/serialize.js` (`toNumber`, `serializeTeacherSubmission`, …)
 
 ---
 
