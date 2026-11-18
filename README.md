@@ -520,6 +520,8 @@ curl http://localhost:4000/health
 | PATCH | `/api/grading/answers/:answerId` | ตรวจอัตนัย: ถูก/ไม่ถูก + หมายเหตุ + ปรับคะแนน |
 | POST | `/api/grading/submissions/:submissionId/release` | **"ส่งผลไปให้นักเรียน"** (รายคน) |
 | POST | `/api/grading/exams/:examId/release` | ปล่อยผลทั้งชุด (ข้ามคนที่ยังตรวจไม่ครบ) |
+| GET | `/api/grading/exams/:examId/stats` | สถิติข้อสอบ: จำนวนรอตรวจ/รอปล่อยผล, คะแนนเฉลี่ย–สูงสุด–ต่ำสุด, การกระจายเกรด, อัตราตอบถูกต่อข้อ |
+| GET | `/api/grading/exams/:examId/export` | ส่งออกผลคะแนนทั้งชุดเป็น CSV (รองรับ `?status=`; UTF-8 เปิดใน Excel ได้) |
 
 ### นักเรียน (Student) — `/api/my`
 
@@ -723,6 +725,7 @@ src/
     password.js          # hash / verify รหัสผ่านด้วย bcryptjs
     errors.js            # ApiError + publicUser()
     serialize.js         # แปลง Prisma Decimal → number ก่อนส่ง JSON
+    csv.js               # สร้าง CSV ปลอดภัย (escape + กัน formula injection + BOM)
   middleware/
     auth.js              # authenticate + requireRole/teacherOnly/studentOnly
     validate.js          # ตรวจ params/body/query ด้วย zod

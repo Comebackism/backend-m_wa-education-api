@@ -634,6 +634,36 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/grading/exams/{examId}/stats': {
+      parameters: [pathParam('examId', 'รหัสข้อสอบ')],
+      get: {
+        tags: ['Grading'],
+        summary: 'สถิติภาพรวมของข้อสอบ (สำหรับ dashboard)',
+        description: 'คะแนนนับเฉพาะใบที่ตรวจครบ (GRADED/RELEASED) · `needsGrading` = ยังมีข้อที่ไม่ถูกตรวจ · `pendingRelease` = ตรวจครบแล้วรอปล่อยผล',
+        responses: {
+          ...ok('สถิติของข้อสอบ', { type: 'object', required: ['stats'], properties: { stats: ref('ExamStats') } }),
+          ...pick(401, 403, 404, 500),
+        },
+      },
+    },
+    '/api/grading/exams/{examId}/export': {
+      parameters: [pathParam('examId', 'รหัสข้อสอบ')],
+      get: {
+        tags: ['Grading'],
+        summary: 'ส่งออกผลคะแนนทั้งชุดเป็น CSV',
+        description: 'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM เปิดใน Excel ได้ทันที) · รองรับ `?status=` เพื่อกรองเฉพาะสถานะ',
+        parameters: [
+          { name: 'status', in: 'query', required: false, schema: ref('SubmissionStatus') },
+        ],
+        responses: {
+          200: {
+            description: 'ไฟล์ CSV ของผลคะแนน (Content-Disposition: attachment)',
+            content: { 'text/csv': { schema: { type: 'string' } } },
+          },
+          ...pick(400, 401, 403, 404, 500),
+        },
+      },
+    },
     '/api/grading/submissions/{submissionId}': {
       parameters: [pathParam('submissionId', 'รหัสการส่งข้อสอบ')],
       get: {
@@ -1279,6 +1309,72 @@ export const openApiDocument = {
           graderComment: { type: 'string', maxLength: 2000, nullable: true, description: 'อธิบายว่าผิดหรือถูกเพราะอะไร' },
         },
         example: { isCorrect: false, awardedPoints: 1, graderComment: 'ขั้นตอนถูกแต่คำนวณตอนท้ายคลาดเคลื่อน' },
+      },
+      ExamStats: {
+        type: 'object',
+        properties: {
+          exam: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              title: { type: 'string' },
+              status: ref('ExamStatus'),
+              totalsPoints: { type: 'number' },
+            },
+          },
+          summary: {
+            type: 'object',
+            properties: {
+              submissions: { type: 'integer', description: 'จำนวนใบส่งข้อสอบทั้งหมด' },
+              inProgress: { type: 'integer' },
+              submitted: { type: 'integer' },
+              graded: { type: 'integer' },
+              released: { type: 'integer' },
+              needsGrading: { type: 'integer', description: 'จำนวนใบที่ยังมีข้อไม่ถูกตรวจ' },
+              pendingRelease: { type: 'integer', description: 'จำนวนใบที่ตรวจครบแล้ว รอปล่อยผล' },
+            },
+          },
+          scores: {
+            type: 'object',
+            description: 'คำนวณจากใบที่ตรวจครบแล้วเท่านั้น (GRADED/RELEASED)',
+            properties: {
+              scoredCount: { type: 'integer' },
+              averageTotal: { type: 'number' },
+              averagePercent: { type: 'number' },
+              highest: { type: 'number' },
+              lowest: { type: 'number' },
+            },
+          },
+          gradeDistribution: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                grade: { type: 'string', example: 'B' },
+                minPercent: { type: 'number' },
+                count: { type: 'integer' },
+              },
+            },
+          },
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                questionId: { type: 'string', format: 'uuid' },
+                order: { type: 'integer' },
+                type: ref('QuestionType'),
+                prompt: { type: 'string' },
+                points: { type: 'number' },
+                answeredCount: { type: 'integer', description: 'จำนวนใบที่ตอบข้อนี้' },
+                gradedCount: { type: 'integer', description: 'จำนวนใบที่ข้อนี้ถูกตรวจแล้ว' },
+                correctCount: { type: 'integer' },
+                correctRate: { type: 'number', nullable: true, description: 'เปอร์เซ็นต์ตอบถูก (null = ยังไม่มีใครถูกตรวจ)' },
+                averageAwardedPoints: { type: 'number', nullable: true },
+              },
+            },
+          },
+        },
       },
 
       // --- student side ---------------------------------------------------
