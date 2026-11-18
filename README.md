@@ -359,6 +359,9 @@ cp .env.example .env
 | `BCRYPT_ROUNDS` | `10` | | ค่า cost ของ bcrypt (4–15) |
 | `CORS_ORIGIN` | `http://localhost:5173` | | allow-list ของ origin (คั่นหลายค่าด้วย `,`) ใช้ทั้ง REST และ Socket.IO |
 | `DOCS_ENABLED` | (ไม่ตั้งค่า) | | เปิด/ปิด Swagger UI — ไม่ตั้งค่า = เปิดใน dev/test, ปิดใน production (ถ้าใส่ใน `.env` ต้องเป็น `true`/`false` เท่านั้น ค่าว่างจะทำให้ config ไม่ผ่าน) |
+| `LOGIN_RATE_LIMIT_MAX` | `10` | | เพดานล็อกอินต่อ 15 นาที/ต่อ IP **เฉพาะ dev/test** (production ตรึง 10 ไว้ในโค้ด) |
+| `REGISTER_RATE_LIMIT_MAX` | `20` | | เพดานสมัครสมาชิกต่อ 1 ชั่วโมง/ต่อ IP **เฉพาะ dev/test** (production ตรึง 20) |
+| `RATE_LIMIT_DISABLED` | (ไม่ตั้งค่า) | | `true` = ปิด rate limit ทั้งหมด (ใช้ได้เฉพาะเมื่อ `NODE_ENV` ไม่ใช่ `production`) |
 
 ```env
 NODE_ENV=development
@@ -865,7 +868,7 @@ npm run test:realtime
 | ต่อ DB ไม่ได้ทั้งที่ Docker ขึ้นแล้ว | healthcheck ยังไม่ผ่าน | รอสักครู่ (`pg_isready`) หรือดู log `docker compose logs db` |
 | `@prisma/client did not initialize yet` | ยังไม่ generate client | `npm run generate` |
 | ล็อกอินแล้วขึ้น `403` "บัญชีนี้เป็นบทบาท …" | ส่ง `role` ไม่ตรงกับบัญชีจริง | ส่ง `role` ให้ตรง (ครู/นักเรียน) |
-| `429` ตอนล็อกอิน | เกิน rate limit (10 ครั้ง/15 นาที ต่อ IP) | รอแล้วลองใหม่ |
+| `429` ตอนล็อกอิน | เกิน rate limit (ค่าเริ่มต้น 10 ครั้ง/15 นาที ต่อ IP) | รอตาม `Retry-After` ใน response แล้วลองใหม่ · ตอนพัฒนาให้ตั้ง `LOGIN_RATE_LIMIT_MAX` สูง ๆ หรือ `RATE_LIMIT_DISABLED=true` ใน `.env` แล้วรีสตาร์ต (ตัวนับเป็น in-memory → รีสตาร์ตเซิร์ฟเวอร์ก็ล้าง) |
 | ยิง API แล้วได้ `401` | ไม่ได้แนบ header หรือ token หมดอายุ | แนบ `Authorization: Bearer <access token>` หรือเรียก `/api/auth/refresh` |
 | `/api/docs` เปิดไม่ได้ | `DOCS_ENABLED=false` หรือรันด้วย `NODE_ENV=production` | ตั้ง `DOCS_ENABLED=true` ถ้าจำเป็น |
 | Socket.IO `connect_error: UNAUTHORIZED` | ไม่ได้ส่ง access token หรือ token หมดอายุ | ส่ง `auth: { token }` และ refresh token ให้ใหม่ก่อน |
@@ -883,7 +886,7 @@ npm run test:realtime
   และบังคับ **release gate** ก่อนโชว์คะแนน/เฉลย/หมายเหตุ
 - **helmet** ตั้ง header ความปลอดภัยให้ทุก response, ปิด `x-powered-by`
 - **CORS** เป็น allow-list จาก `CORS_ORIGIN` (ใช้ทั้ง REST และ Socket.IO)
-- **Rate limit** ที่ login/register กัน brute-force
+- **Rate limit** ที่ login/register กัน brute-force (production ตรึงค่าจริงไว้ในโค้ด — โหมด dev/test ปรับเพดานหรือปิดได้ด้วย `LOGIN_RATE_LIMIT_MAX` / `REGISTER_RATE_LIMIT_MAX` / `RATE_LIMIT_DISABLED`)
 - **Ownership check** ทุก endpoint ของครู/นักเรียน — ไม่มีทางเข้าถึงข้อมูลข้ามคน
 - ใน production จะตั้ง `trust proxy` (สำหรับรันหลัง reverse proxy/load balancer) และ **ปิด Swagger UI ให้อัตโนมัติ**
 
