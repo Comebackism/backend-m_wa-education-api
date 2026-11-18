@@ -471,6 +471,25 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/exams/request-ip': {
+      get: {
+        tags: ['Exams'],
+        summary: 'IP ปัจจุบันของผู้เรียก (teacher) — ช่วยตั้งค่า IP restriction',
+        description: 'คืน `ip` (ตามที่ Express มองเห็น) + `normalizedIp` (รูปมาตรฐานที่เอาไปใส่ใน `allowedIpRanges` ได้เลย)',
+        responses: {
+          ...ok('IP ของผู้เรียก', {
+            type: 'object',
+            required: ['ip'],
+            properties: {
+              ip: { type: 'string', example: '::1' },
+              normalizedIp: { type: 'string', nullable: true, example: '::1' },
+              version: { type: 'integer', nullable: true, enum: [4, 6] },
+            },
+          }),
+          ...pick(401, 403, 500),
+        },
+      },
+    },
     '/api/exams/questions/import-template': {
       get: {
         tags: ['Exams'],
@@ -848,7 +867,7 @@ export const openApiDocument = {
       get: {
         tags: ['Student — My'],
         summary: 'รายละเอียดข้อสอบสำหรับนักเรียน (ไม่มีเฉลย)',
-        description: 'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้ · `mySubmission` ไม่มีคะแนน/เกรดจนกว่าจะ `RELEASED`',
+        description: 'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้ · `mySubmission` ไม่มีคะแนน/เกรดจนกว่าจะ `RELEASED` · ถ้าข้อสอบตั้ง `allowedIpRanges` ไว้และ IP ผู้เรียกไม่อยู่ในรายการ จะได้ `403`',
         responses: {
           ...ok('กระดาษข้อสอบ', { type: 'object', required: ['exam'], properties: { exam: ref('StudentExam') } }),
           ...pick(401, 403, 404, 500),
@@ -860,7 +879,7 @@ export const openApiDocument = {
       post: {
         tags: ['Student — My'],
         summary: 'เริ่มทำข้อสอบ (หรือทำใบเดิมต่อ)',
-        description: 'ถ้าเคยเริ่มไว้และยังไม่ส่ง จะคืนใบเดิม · กำหนด `expiresAt` จาก `timeLimitMinutes` ของข้อสอบ',
+        description: 'ถ้าเคยเริ่มไว้และยังไม่ส่ง จะคืนใบเดิม · กำหนด `expiresAt` จาก `timeLimitMinutes` ของข้อสอบ · ถ้า IP ผู้เรียกไม่อยู่ใน `allowedIpRanges` ของข้อสอบ จะได้ `403`',
         requestBody: { required: false, content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }) },
         responses: {
           ...created('เริ่มทำสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
@@ -1242,6 +1261,11 @@ export const openApiDocument = {
           courseId: { type: 'string', format: 'uuid', nullable: true },
           teacherId: { type: 'string', format: 'uuid' },
           timeLimitMinutes: { type: 'integer', nullable: true, description: 'null = ไม่จำกัดเวลา' },
+          allowedIpRanges: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'รายการ IP/CIDR ที่อนุญาตให้เข้าทำข้อสอบ (ว่าง = ไม่จำกัด) — ตรวจตอนดึงข้อสอบ/เริ่มทำ',
+          },
           defaultDisplayMode: ref('DisplayMode'),
           questionsPerPage: { type: 'integer' },
           totalsPoints: { type: 'number', description: 'คะแนนเต็มรวม (คำนวณอัตโนมัติ)' },
@@ -1273,10 +1297,16 @@ export const openApiDocument = {
           description: { type: 'string', maxLength: 5000, nullable: true },
           courseId: { type: 'string', format: 'uuid', nullable: true },
           timeLimitMinutes: { type: 'integer', minimum: 1, maximum: 1440, nullable: true },
+          allowedIpRanges: {
+            type: 'array',
+            maxItems: 50,
+            items: { type: 'string', maxLength: 64 },
+            description: 'จำกัด IP ที่เข้าทำข้อสอบได้ — รับ IPv4/IPv6 และ CIDR เช่น `203.0.113.0/24`, `2001:db8::/32` (ส่ง `[]` = ไม่จำกัด)',
+          },
           defaultDisplayMode: ref('DisplayMode'),
           questionsPerPage: { type: 'integer', minimum: 1, maximum: 100 },
         },
-        example: { title: 'สอบเก็บคะแนน บทที่ 1', timeLimitMinutes: 60, defaultDisplayMode: 'PAGINATED', questionsPerPage: 5 },
+        example: { title: 'สอบเก็บคะแนน บทที่ 1', timeLimitMinutes: 60, defaultDisplayMode: 'PAGINATED', questionsPerPage: 5, allowedIpRanges: ['203.0.113.0/24'] },
       },
       ExamAssignment: {
         type: 'object',

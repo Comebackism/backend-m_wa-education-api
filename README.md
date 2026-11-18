@@ -54,6 +54,8 @@ REST API + Realtime สำหรับระบบจัดการเรีย
   กำหนดคะแนนรายข้อเอง, จัดลำดับข้อ, ใส่เฉลยอ้างอิง (referenceText) และคำอธิบายเฉลย (explanation)
 - **นำเข้าข้อคำถามทีละหลายข้อจากไฟล์ CSV / Excel (.xlsx)** — ดาวน์โหลดแม่แบบได้จากระบบ
   ตรวจทุกแถวก่อนแบบ all-or-nothing (ผิดจะบอกเลขแถวให้แก้ ไม่บันทึกบางส่วน) และมี `?dryRun=true` ให้พรีวิวก่อนบันทึกจริง
+- **จำกัด IP ที่เข้าทำข้อสอบ** (`allowedIpRanges`) — รับ IPv4/IPv6 และ CIDR เช่น `203.0.113.0/24`
+  มี endpoint `GET /api/exams/request-ip` ให้ดู IP ปัจจุบันเพื่อคัดลอกไปตั้งค่า
 - กำหนด **เกณฑ์ตัดเกรด A–F** แบบเปอร์เซ็นต์ (มีชุดมาตรฐานให้เป็นค่าเริ่มต้น)
 - **มอบหมายข้อสอบให้ห้องเรียน** พร้อมกำหนดช่วงเวลาเปิด–ปิดของแต่ละห้อง
 - เปิด/ปิดสอบ (DRAFT → PUBLISHED → CLOSED)
@@ -176,7 +178,7 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 | `Course` | `courses` | `code`, `title`, `description`, `teacherId` | unique `[teacherId, code]` |
 | `Classroom` | `classrooms` | `name`, `joinCode` (unique), `courseId`, `teacherId` | joinCode สุ่มอัตโนมัติ 6 ตัว |
 | `Enrollment` | `enrollments` | `classroomId`, `studentId`, `enrolledAt` | unique `[classroomId, studentId]` |
-| `Exam` | `exams` | `title`, `status`, `timeLimitMinutes?`, `defaultDisplayMode`, `questionsPerPage`, `totalsPoints` | `courseId` on delete → `SetNull` |
+| `Exam` | `exams` | `title`, `status`, `timeLimitMinutes?`, `allowedIpRanges[]`, `defaultDisplayMode`, `questionsPerPage`, `totalsPoints` | `courseId` on delete → `SetNull` |
 | `ExamAssignment` | `exam_assignments` | `availableFrom?`, `availableTo?` | unique `[examId, classroomId]` |
 | `Question` | `questions` | `type`, `prompt`, `points`, `order`, `referenceText?`, `explanation?` | cascade เมื่อ exam ถูกลบ |
 | `Choice` | `choices` | `label`, `text`, `isCorrect`, `order` | unique `[questionId, label]` |
@@ -245,6 +247,9 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
   - ตรวจ **ทุกแถวก่อน** แบบ all-or-nothing: ถ้ามีแถวผิดจะไม่บันทึกสักข้อ แล้วคืน `error.details = [{ row, message }]` (HTTP `400`)
   - `?dryRun=true` → ตรวจและพรีวิวโดยไม่บันทึก (HTTP `200`) · ทำได้เฉพาะชุดข้อสอบสถานะ `DRAFT` (ไม่งั้น `409`)
   - นำเข้าซ้ำได้เรื่อย ๆ — ลำดับข้อจะ **ต่อจากข้อสุดท้าย** และ `totalsPoints` ถูกคำนวณใหม่ให้อัตโนมัติ
+- **จำกัด IP ที่เข้าทำข้อสอบ:** ตั้ง `allowedIpRanges` ตอนสร้าง/แก้ข้อสอบ (รับ IPv4/IPv6 และ CIDR เช่น `203.0.113.0/24`, `2001:db8::/32`)
+  - `[]` (ค่าเริ่มต้น) = ไม่จำกัด · สูงสุด 50 รายการ · ระบบตัดช่องว่าง/รายการซ้ำให้ · รูปแบบผิด → `400`
+  - `GET /api/exams/request-ip` ช่วยดู IP ปัจจุบันของครู เพื่อคัดลอกไปใส่ได้
 - **เกณฑ์ตัดเกรด:** ใส่เกรดซ้ำกันไม่ได้ (`400`) และการเปลี่ยนเกณฑ์จะ **คำนวณเกรดของทุกใบที่ส่งแล้วใหม่ทันที**
 - **ลบข้อสอบ** ที่มีการส่งคำตอบแล้วจะถูกบล็อก (`409`) — ต้องส่ง `?force=true` ถ้าต้องการลบจริง
 - **ลบห้องเรียน** ที่มีข้อสอบซึ่งมีการส่งคำตอบแล้วจะถูกบล็อก (`409`) เพื่อไม่ให้ประวัติคะแนนหาย
@@ -264,6 +269,8 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
   - ถ้าเคยเริ่มไว้และยังไม่ส่ง → คืน **ใบเดิม** ให้ทำต่อ (ไม่สร้างซ้ำ)
   - ถ้าส่งไปแล้ว → `409` "คุณส่งข้อสอบชุดนี้แล้ว"
   - ถ้ามี `timeLimitMinutes` ระบบตั้ง `expiresAt = now + timeLimitMinutes`
+  - ถ้าข้อสอบตั้ง `allowedIpRanges` ไว้ และ IP ของเครื่องที่เรียก **ไม่อยู่ในรายการ** → `403` "เครื่องนี้ไม่ได้รับอนุญาต…(จำกัด IP)"
+    - ตรวจเฉพาะตอน **เข้าทำ** (ดึงรายละเอียดข้อสอบ + เริ่มทำ) เท่านั้น — ถ้าเริ่มทำไปแล้วแล้วเน็ตเปลี่ยน ยังบันทึก/ส่งคำตอบได้ ไม่เสียคำตอบ
 - เลือกโหมดแสดงผล `SINGLE_PAGE` / `PAGINATED` ได้ (ค่าเริ่มต้น = `exam.defaultDisplayMode`)
 - บันทึกคำตอบ: `PUT /api/my/submissions/:submissionId/answers` (bulk 1–200 รายการ)
   - บันทึกได้เฉพาะตอน `IN_PROGRESS` และยังไม่หมดเวลา — ไม่งั้น `409`
@@ -515,10 +522,11 @@ curl http://localhost:4000/health
 | POST | `/api/students` | เพิ่มนักเรียนใหม่ (คืนรหัสผ่านชั่วคราว; แนบ `classroomId` เพื่อเข้าห้องทันที) |
 | PATCH/DELETE | `/api/students/:studentId` | แก้ไข (ชื่อ/อีเมล/รหัส/ระงับการใช้งาน) / **เอานักเรียนออกจากทุกห้องของครูคนนี้** (ไม่ลบบัญชี ไม่แตะข้อมูลครูคนอื่น) |
 | POST | `/api/students/:studentId/reset-password` | รีเซ็ตรหัสผ่านนักเรียน (คืนรหัสใหม่) |
-| GET/POST | `/api/exams` | ข้อสอบ: ดูทั้งหมด (รองรับ `?status=&courseId=`) / สร้างใหม่ |
+| GET/POST | `/api/exams` | ข้อสอบ: ดูทั้งหมด (รองรับ `?status=&courseId=`) / สร้างใหม่ (ตั้ง `timeLimitMinutes`, `allowedIpRanges` ได้) |
 | GET/PATCH/DELETE | `/api/exams/:examId` | รายละเอียด (รวม submissionStats) / แก้ไข / ลบ (`?force=true` ถ้ามีคนส่งแล้ว) |
 | POST | `/api/exams/:examId/publish` \| `/close` | เปิด / ปิดการสอบ |
 | GET | `/api/exams/default-cutoffs` | เกณฑ์ตัดเกรดมาตรฐาน A–F (ค่าเริ่มต้นของฟอร์ม) |
+| GET | `/api/exams/request-ip` | IP ปัจจุบันของผู้เรียก (ช่วยตั้งค่า `allowedIpRanges`) |
 | GET | `/api/exams/questions/import-template` | ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้าข้อคำถาม (`ประเภท, โจทย์, คะแนน, ตัวเลือก A–D, เฉลย, คำตอบอ้างอิง, คำอธิบาย`) |
 | POST | `/api/exams/:examId/questions` | เพิ่มข้อคำถาม (ปรนัย/อัตนัย + คะแนน) |
 | PATCH/DELETE | `/api/exams/:examId/questions/:questionId` | แก้ไข / ลบข้อคำถาม |
@@ -739,6 +747,7 @@ src/
     serialize.js         # แปลง Prisma Decimal → number ก่อนส่ง JSON
     csv.js               # สร้าง CSV ปลอดภัย (escape + กัน formula injection + BOM)
     questionImport.js    # อ่าน/ตรวจไฟล์ CSV–Excel ที่นำเข้าข้อคำถาม (แยกจาก DB เพื่อเทสต์ง่าย)
+    ipAllowlist.js       # ตรวจ IP/CIDR allowlist (IPv4/IPv6) สำหรับจำกัดเครื่องที่เข้าทำข้อสอบ
   middleware/
     auth.js              # authenticate + requireRole/teacherOnly/studentOnly
     validate.js          # ตรวจ params/body/query ด้วย zod
@@ -895,6 +904,7 @@ npm run test:realtime
 - **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 ข้อต่อครั้ง
 - **นำเข้ารายชื่อนักเรียน** ทำได้แค่ดาวน์โหลดแม่แบบ (`GET /api/students/template`) — ยังไม่มี endpoint รับไฟล์นำเข้าเป็นชุด
 - ยังไม่มี **คลังข้อคำถาม (Question Bank)** แยกจากชุดข้อสอบ (สคีมาผูก `Question` เข้ากับ `Exam` เสมอ)
+- **IP restriction** ตรวจเฉพาะตอน "เข้าทำ" (ดึงข้อสอบ/เริ่มทำ) ไม่ได้ตรวจทุกคำขอ และอ้าง `req.ip` ตาม `trust proxy` — ถ้ารันหลัง reverse proxy ต้องตั้ง `trust proxy` ให้ถูก (production ตั้งไว้แล้ว)
 
 ---
 

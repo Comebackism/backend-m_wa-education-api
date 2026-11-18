@@ -156,6 +156,7 @@ model Exam {
   courseId           String?    @db.Uuid
   teacherId          String     @db.Uuid
   timeLimitMinutes   Int? /// null = ไม่จำกัดเวลา
+  allowedIpRanges    String[]   @default([]) /// รายการ IP/CIDR ที่อนุญาตให้เข้าทำข้อสอบ (ว่าง = ไม่จำกัด)
   defaultDisplayMode DisplayMode @default(SINGLE_PAGE)
   questionsPerPage   Int        @default(10)
   totalsPoints       Decimal    @default(0) @db.Decimal(7, 2)

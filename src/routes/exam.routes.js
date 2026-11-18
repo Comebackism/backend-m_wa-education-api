@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate.js';
 import { authenticate, teacherOnly } from '../middleware/auth.js';
 import { uploadSingleFile } from '../middleware/upload.js';
 import { ApiError } from '../lib/errors.js';
+import { formatIp, getClientIp, normalizeIp, validateIpRules } from '../lib/ipAllowlist.js';
 import { booleanQuery, idParams, uuid } from '../validators/common.js';
 import { DEFAULT_CUTOFFS } from '../services/exam.service.js';
 import * as examService from '../services/exam.service.js';
@@ -14,6 +15,14 @@ router.use(authenticate, teacherOnly);
 
 // --- schemas ---------------------------------------------------------------
 
+const ipRulesSchema = z
+  .array(z.string().trim().min(1).max(64))
+  .max(50)
+  .superRefine((rules, ctx) => {
+    const message = validateIpRules(rules);
+    if (message) ctx.addIssue({ code: 'custom', message });
+  });
+
 const examBody = z.object({
   title: z.string().trim().min(1, 'ต้องระบุชื่อข้อสอบ').max(200),
   description: z.string().max(5000).nullish(),
@@ -21,6 +30,7 @@ const examBody = z.object({
   timeLimitMinutes: z.coerce.number().int().positive().max(1440).nullish(),
   defaultDisplayMode: z.enum(['SINGLE_PAGE', 'PAGINATED']).optional(),
   questionsPerPage: z.coerce.number().int().min(1).max(100).optional(),
+  allowedIpRanges: ipRulesSchema.optional(),
 });
 
 const choiceSchema = z.object({
@@ -77,6 +87,13 @@ router.post('/', validate({ body: examBody }), async (req, res) => {
 // เกณฑ์ตัดเกรดมาตรฐาน (ให้ frontend ใช้เป็นค่าเริ่มต้นในฟอร์ม)
 router.get('/default-cutoffs', (req, res) => {
   res.json({ cutoffs: DEFAULT_CUTOFFS });
+});
+
+// IP ปัจจุบันของผู้เรียก — ให้ครูคัดลอกไปใส่ในช่อง "จำกัด IP" ได้ง่าย (ปุ่ม "ใช้ IP นี้")
+router.get('/request-ip', (req, res) => {
+  const ip = getClientIp(req);
+  const parsed = normalizeIp(ip);
+  res.json({ ip, normalizedIp: parsed ? formatIp(parsed) : null, version: parsed?.version ?? null });
 });
 
 // แม่แบบ CSV สำหรับนำเข้าข้อคำถาม (ปุ่ม "นำเข้าข้อสอบจากไฟล์" → ดาวน์โหลดแม่แบบ)

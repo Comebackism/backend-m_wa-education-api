@@ -1,4 +1,5 @@
 import { ApiError } from './errors.js';
+import { isIpAllowed } from './ipAllowlist.js';
 import { prisma } from './prisma.js';
 
 /**
@@ -58,8 +59,11 @@ export async function getOwnStudentSubmission(studentId, submissionId, include) 
   return prisma.submission.findUnique({ where: { id: submissionId }, include });
 }
 
-/** ข้อสอบที่นักเรียนคนนี้มีสิทธิ์ทำ (เปิดสอบแล้ว + ถูก assign เข้าห้องที่ตัวเองอยู่) */
-export async function getExamForStudent(examId, studentId, include) {
+/**
+ * ข้อสอบที่นักเรียนคนนี้มีสิทธิ์ทำ (เปิดสอบแล้ว + ถูก assign เข้าห้องที่ตัวเองอยู่)
+ * ถ้าข้อสอบตั้ง IP restriction ไว้ จะตรวจ client IP ด้วย (เฉพาะตอน "เข้าทำ" — ดูรายละเอียดข้อสอบ/เริ่มทำ)
+ */
+export async function getExamForStudent(examId, studentId, include, { clientIp } = {}) {
   // ต้อง include assignments + classroom.enrollments เสมอ เพื่อตรวจสิทธิ์ด้านล่าง
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
@@ -79,6 +83,9 @@ export async function getExamForStudent(examId, studentId, include) {
   if (!assignment) throw ApiError.forbidden('คุณไม่ได้อยู่ในห้องเรียนที่ได้รับมอบหมายข้อสอบนี้');
   if (assignment.availableFrom && now < assignment.availableFrom) throw ApiError.forbidden('ยังไม่ถึงเวลาทำข้อสอบ');
   if (assignment.availableTo && now > assignment.availableTo) throw ApiError.forbidden('เลยเวลาทำข้อสอบแล้ว');
+  if (!isIpAllowed(clientIp, exam.allowedIpRanges)) {
+    throw ApiError.forbidden('เครื่องนี้ไม่ได้รับอนุญาตให้ทำข้อสอบชุดนี้ (จำกัด IP) กรุณาเชื่อมต่อผ่านเครือข่ายที่กำหนด');
+  }
 
   return exam;
 }
