@@ -36,6 +36,7 @@ socket.on('connected', (payload) => console.log('hello', payload));
 ## Authentication
 
 Server ตรวจ access token **ตอน handshake** (ก่อนเชื่อมต่อสำเร็จ) ด้วย JWT ตัวเดียวกับ REST
+แล้วตรวจบัญชีกับฐานข้อมูลซ้ำ (ต้องมีอยู่จริงและ `isActive = true`) เหมือน middleware ของ REST
 รับ token ได้ 2 ทาง (อย่างใดอย่างหนึ่ง):
 
 | วิธี | ตัวอย่าง |
@@ -48,6 +49,7 @@ Server ตรวจ access token **ตอน handshake** (ก่อนเชื�
 ```
 UNAUTHORIZED: ต้องแนบ access token
 UNAUTHORIZED: token ไม่ถูกต้องหรือหมดอายุ
+UNAUTHORIZED: ไม่พบผู้ใช้ หรือบัญชีถูกระงับการใช้งาน
 ```
 
 ---
