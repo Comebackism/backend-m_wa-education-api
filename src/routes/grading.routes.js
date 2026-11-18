@@ -27,6 +27,33 @@ router.post('/exams/:examId/release', validate({ params: idParams('examId') }), 
   res.json(result);
 });
 
+// สถิติภาพรวมของข้อสอบชุดนี้ (ไว้ทำ dashboard: รอตรวจ/รอปล่อยผล, คะแนนเฉลี่ย, อัตราตอบถูกต่อข้อ)
+router.get('/exams/:examId/stats', validate({ params: idParams('examId') }), async (req, res) => {
+  const stats = await gradingService.getExamStats(req.user.id, req.params.examId);
+  res.json({ stats });
+});
+
+// ส่งออกผลคะแนนทั้งชุดเป็น CSV (รองรับ ?status=)
+router.get(
+  '/exams/:examId/export',
+  validate({ params: idParams('examId'), query: z.object({ status: submissionStatus.optional() }) }),
+  async (req, res) => {
+    const { filename, title, content } = await gradingService.exportExamResultsCsv(
+      req.user.id,
+      req.params.examId,
+      req.validatedQuery,
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    // filename แบบ ASCII สำหรับ client เก่า + filename* แบบ UTF-8 ให้ชื่อไฟล์ภาษาไทยอ่านออก
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(`${title}-results.csv`)}`,
+    );
+    res.send(content);
+  },
+);
+
 // รายละเอียดคำตอบทุกข้อของนักเรียน 1 คน
 router.get('/submissions/:submissionId', validate({ params: idParams('submissionId') }), async (req, res) => {
   const submission = await gradingService.getSubmissionDetail(req.user.id, req.params.submissionId);

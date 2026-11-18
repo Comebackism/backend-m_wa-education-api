@@ -3,6 +3,7 @@ import { ApiError } from '../lib/errors.js';
 import { getOwnedExam, getOwnedSubmission } from '../lib/access.js';
 import { recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeTeacherSubmission, toNumber } from '../lib/serialize.js';
+import { toCsv } from '../lib/csv.js';
 import { emitToUser, emitToUsers } from '../realtime/emit.js';
 import { RealtimeEvent } from '../realtime/events.js';
 
@@ -173,4 +174,180 @@ export async function releaseExamResults(teacherId, examId) {
   emitToUsers(ready.map((submission) => submission.studentId), RealtimeEvent.RESULT_RELEASED, { examId });
 
   return { released: result.count, skipped, message: skipped > 0 ? `ปล่อยผลแล้ว ${result.count} คน (ข้าม ${skipped} คนที่ยังตรวจไม่ครบ)` : `ปล่อยผลแล้ว ${result.count} คน` };
+}
+
+/**
+ * สถิติภาพรวมของข้อสอบ 1 ชุด (สำหรับหน้าตรวจ/dashboard ของครู) — read-only
+ * ครอบคลุม: จำนวนใบตามสถานะ, งานที่ยังต้องตรวจ/รอปล่อยผล,
+ * คะแนนเฉลี่ย–สูงสุด–ต่ำสุด, การกระจายเกรด และอัตราตอบถูกของแต่ละข้อ
+ */
+export async function getExamStats(teacherId, examId) {
+  const exam = await getOwnedExam(teacherId, examId, {
+    questions: {
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, type: true, prompt: true, points: true, order: true },
+    },
+    cutoffs: { orderBy: { minPercent: 'desc' } },
+  });
+
+  const submissions = await prisma.submission.findMany({
+    where: { examId },
+    select: {
+      status: true,
+      totalScore: true,
+      percent: true,
+      grade: true,
+      answers: { select: { questionId: true, choiceId: true, textAnswer: true, isCorrect: true, awardedPoints: true } },
+    },
+  });
+
+  const counts = { IN_PROGRESS: 0, SUBMITTED: 0, GRADED: 0, RELEASED: 0 };
+  let needsGrading = 0;
+
+  // สะสมต่อข้อ ไว้คำนวณอัตราตอบถูก
+  const perQuestion = new Map(
+    exam.questions.map((question) => [question.id, { answered: 0, graded: 0, correct: 0, awarded: 0 }]),
+  );
+
+  const scored = [];
+  for (const submission of submissions) {
+    counts[submission.status] = (counts[submission.status] ?? 0) + 1;
+
+    const ungraded = submission.answers.filter((answer) => answer.isCorrect === null).length;
+    if (submission.status === 'SUBMITTED' && ungraded > 0) needsGrading += 1;
+
+    // นับคะแนนเฉพาะใบที่ตรวจครบแล้ว (ไม่เอาคะแนนบางส่วนของใบที่ยังตรวจไม่ครบมาปน)
+    if (submission.status === 'GRADED' || submission.status === 'RELEASED') scored.push(submission);
+
+    for (const answer of submission.answers) {
+      const bucket = perQuestion.get(answer.questionId);
+      if (!bucket) continue;
+      const hasAnswer = answer.choiceId !== null || (answer.textAnswer !== null && answer.textAnswer !== '');
+      if (hasAnswer) bucket.answered += 1;
+      if (answer.isCorrect !== null) bucket.graded += 1;
+      if (answer.isCorrect === true) bucket.correct += 1;
+      if (answer.awardedPoints !== null) bucket.awarded += toNumber(answer.awardedPoints);
+    }
+  }
+
+  const mean = (list) => (list.length ? round2(list.reduce((sum, value) => sum + value, 0) / list.length) : 0);
+  const totalScores = scored.map((submission) => toNumber(submission.totalScore));
+  const percents = scored.map((submission) => toNumber(submission.percent));
+
+  return {
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      status: exam.status,
+      totalsPoints: toNumber(exam.totalsPoints),
+    },
+    summary: {
+      submissions: submissions.length,
+      inProgress: counts.IN_PROGRESS,
+      submitted: counts.SUBMITTED,
+      graded: counts.GRADED,
+      released: counts.RELEASED,
+      needsGrading, /// ยังมีคำตอบที่ isCorrect = null (ต้องตรวจอัตนัยต่อ)
+      pendingRelease: counts.GRADED, /// ตรวจครบแล้ว รอครูปล่อยผล
+    },
+    scores: {
+      scoredCount: scored.length,
+      averageTotal: mean(totalScores),
+      averagePercent: mean(percents),
+      highest: totalScores.length ? round2(Math.max(...totalScores)) : 0,
+      lowest: totalScores.length ? round2(Math.min(...totalScores)) : 0,
+    },
+    gradeDistribution: exam.cutoffs.map((cutoff) => ({
+      grade: cutoff.grade,
+      minPercent: toNumber(cutoff.minPercent),
+      count: scored.filter((submission) => submission.grade === cutoff.grade).length,
+    })),
+    questions: exam.questions.map((question) => {
+      const bucket = perQuestion.get(question.id);
+      return {
+        questionId: question.id,
+        order: question.order,
+        type: question.type,
+        prompt: question.prompt,
+        points: toNumber(question.points),
+        answeredCount: bucket.answered,
+        gradedCount: bucket.graded,
+        correctCount: bucket.correct,
+        correctRate: bucket.graded > 0 ? round2((bucket.correct / bucket.graded) * 100) : null,
+        averageAwardedPoints: bucket.graded > 0 ? round2(bucket.awarded / bucket.graded) : null,
+      };
+    }),
+  };
+}
+
+const CSV_STATUS_LABEL = {
+  IN_PROGRESS: 'กำลังทำ',
+  SUBMITTED: 'ส่งแล้ว รอตรวจ',
+  GRADED: 'ตรวจแล้ว รอปล่อยผล',
+  RELEASED: 'ปล่อยผลแล้ว',
+};
+
+const CSV_HEADERS = [
+  'ลำดับ',
+  'รหัสนักเรียน',
+  'ชื่อ-นามสกุล',
+  'อีเมล',
+  'สถานะ',
+  'ข้อที่ยังไม่ตรวจ',
+  'คะแนนปรนัย',
+  'คะแนนอัตนัย',
+  'คะแนนรวม',
+  'คะแนนเต็ม',
+  'เปอร์เซ็นต์',
+  'เกรด',
+  'ส่งเมื่อ',
+  'ปล่อยผลเมื่อ',
+];
+
+/**
+ * ส่งออกผลคะแนนทั้งชุดเป็น CSV (สำหรับครู) — เปิดใน Excel ได้ทันที (UTF-8 BOM)
+ * รองรับ ?status= เพื่อกรองเฉพาะสถานะ (เช่น RELEASED อย่างเดียว)
+ */
+export async function exportExamResultsCsv(teacherId, examId, { status } = {}) {
+  const exam = await getOwnedExam(teacherId, examId);
+
+  const submissions = await prisma.submission.findMany({
+    where: { examId, ...(status ? { status } : {}) },
+    include: {
+      student: { select: { fullName: true, email: true, studentCode: true } },
+      _count: { select: { answers: { where: { isCorrect: null } } } },
+    },
+    orderBy: [{ student: { studentCode: 'asc' } }, { student: { fullName: 'asc' } }],
+  });
+
+  const totalsPoints = toNumber(exam.totalsPoints);
+
+  const rows = submissions.map((submission, index) => {
+    const started = submission.status !== 'IN_PROGRESS';
+    const finished = submission.status === 'GRADED' || submission.status === 'RELEASED';
+
+    return [
+      index + 1,
+      submission.student.studentCode,
+      submission.student.fullName,
+      submission.student.email,
+      CSV_STATUS_LABEL[submission.status] ?? submission.status,
+      submission._count.answers,
+      started ? toNumber(submission.autoScore) : '',
+      started ? toNumber(submission.manualScore) : '',
+      started ? toNumber(submission.totalScore) : '',
+      totalsPoints,
+      started ? toNumber(submission.percent) : '',
+      finished ? submission.grade : '',
+      submission.submittedAt ? submission.submittedAt.toISOString() : '',
+      submission.releasedAt ? submission.releasedAt.toISOString() : '',
+    ];
+  });
+
+  return {
+    title: exam.title,
+    filename: `exam-results-${exam.id}.csv`,
+    count: submissions.length,
+    content: toCsv(CSV_HEADERS, rows),
+  };
 }

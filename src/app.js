@@ -14,7 +14,8 @@ export function createApp() {
   if (isProduction) app.set('trust proxy', 1);
 
   app.use(helmet());
-  app.use(cors({ origin: corsOrigins, credentials: true }));
+  // exposedHeaders: ให้ frontend (คนละ origin) อ่านชื่อไฟล์จาก Content-Disposition ได้ (ใช้ตอนดาวน์โหลด CSV)
+  app.use(cors({ origin: corsOrigins, credentials: true, exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
 
