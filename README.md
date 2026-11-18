@@ -333,7 +333,7 @@ cp .env.example .env
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | | อายุ refresh token |
 | `BCRYPT_ROUNDS` | `10` | | ค่า cost ของ bcrypt (4–15) |
 | `CORS_ORIGIN` | `http://localhost:5173` | | allow-list ของ origin (คั่นหลายค่าด้วย `,`) ใช้ทั้ง REST และ Socket.IO |
-| `DOCS_ENABLED` | (เว้นว่าง) | | เปิด/ปิด Swagger UI — เว้นว่าง = เปิดใน dev/test, ปิดใน production |
+| `DOCS_ENABLED` | (ไม่ตั้งค่า) | | เปิด/ปิด Swagger UI — ไม่ตั้งค่า = เปิดใน dev/test, ปิดใน production (ถ้าใส่ใน `.env` ต้องเป็น `true`/`false` เท่านั้น ค่าว่างจะทำให้ config ไม่ผ่าน) |
 
 ```env
 NODE_ENV=development
@@ -342,7 +342,7 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/wa_education?schema=
 JWT_ACCESS_SECRET="change-me-access-secret"
 JWT_REFRESH_SECRET="change-me-refresh-secret"
 CORS_ORIGIN=http://localhost:5173
-DOCS_ENABLED=
+DOCS_ENABLED=true
 ```
 
 > - สร้าง secret จริงด้วย `openssl rand -base64 48`
@@ -450,6 +450,8 @@ curl http://localhost:4000/health
 - ไม่ตั้งค่า → เปิดใน `development` / `test`, **ปิดอัตโนมัติใน `production`**
 - `DOCS_ENABLED=false` → ปิดทุกโหมด
 - `DOCS_ENABLED=true` → เปิดแม้ใน production (ระวัง: เผยโครงสร้าง API ให้สาธารณะ)
+
+> ถ้าใส่ `DOCS_ENABLED` ใน `.env` ต้องเป็น `true` หรือ `false` เท่านั้น — ปล่อยค่าว่าง (`DOCS_ENABLED=`) จะทำให้ env validation ไม่ผ่านและเซิร์ฟเวอร์เริ่มไม่ได้
 
 > เมื่อเพิ่ม endpoint ใหม่ อย่าลืมอัปเดต `src/docs/openapi.js` ด้วยจะได้ตรงกับของจริง
 

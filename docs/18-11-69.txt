@@ -1,0 +1,11 @@
+วันนี้ทำอะไรบ้าง
+Fontend
+-แก้ไขเพิ่มนักเรียนแล้วข้อมูลไม่เข้า PostgreSQL
+-เชื่อม 4 endpoint: ดูห้อง, ดูรายชื่อ, เพิ่มนักเรียน, นำออกจากห้อง
+เปลี่ยนจาก mock เป็นโหลด/เพิ่ม/ลบผ่าน API, loading/error/success, คำนวณ metric จากข้อมูลจริง
+dropdown ห้องจริง, บังคับอีเมล, ตัดช่องเลขที่, แสดงรหัสผ่านชั่วคราว, กันกดซ้ำ
+คอลัมน์จริง (รหัส/ชื่อ/อีเมล/สถานะบัญชี), loading + empty state, ปุ่มนำออกจากห้อง
+dropdown ใช้ห้องจริง, metric ทั้งหมด/ใช้งาน/ระงับ
+alert, feedback, credential, email, empty state, ปุ่ม disabled
+Backend
+แก้บั๊ก: DOCS_ENABLED= ค่าว่างทำให้ env validation ไม่ผ่านและเซิร์ฟเวอร์ start ไม่ได้ → แก้ .env.example เป็น true แก้ readme นิดหน่อย
