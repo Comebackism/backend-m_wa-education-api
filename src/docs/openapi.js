@@ -324,6 +324,21 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/classrooms/{classroomId}/students/export': {
+      parameters: [pathParam('classroomId', 'รหัสห้องเรียน')],
+      get: {
+        tags: ['Classrooms'],
+        summary: 'ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (teacher)',
+        description: 'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM เปิดใน Excel ได้ทันที)',
+        responses: {
+          200: {
+            description: 'ไฟล์ CSV ของรายชื่อนักเรียน (Content-Disposition: attachment)',
+            content: { 'text/csv': { schema: { type: 'string' } } },
+          },
+          ...pick(401, 403, 404, 500),
+        },
+      },
+    },
     '/api/classrooms/{classroomId}/students/{studentId}': {
       parameters: [pathParam('classroomId', 'รหัสห้องเรียน'), pathParam('studentId', 'รหัสนักเรียน')],
       delete: {

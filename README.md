@@ -499,6 +499,7 @@ curl http://localhost:4000/health
 | GET/POST | `/api/classrooms` | ห้องเรียน: ดูทั้งหมด (รองรับ `?courseId=`) / สร้างใหม่ |
 | GET/PATCH/DELETE | `/api/classrooms/:classroomId` | รายละเอียด (รวม students + examAssignments) / แก้ไข / ลบ |
 | GET | `/api/classrooms/:classroomId/students` | รายชื่อนักเรียนในห้อง |
+| GET | `/api/classrooms/:classroomId/students/export` | ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (UTF-8 เปิดใน Excel ได้) |
 | POST | `/api/classrooms/:classroomId/students` | เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+") |
 | DELETE | `/api/classrooms/:classroomId/students/:studentId` | เอานักเรียนออกจากห้อง |
 | GET | `/api/students` | รายชื่อนักเรียนทั้งหมดของครู (รองรับ `?q=`) |

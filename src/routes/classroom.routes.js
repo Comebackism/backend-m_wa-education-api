@@ -74,6 +74,21 @@ router.get('/:classroomId/students', validate({ params: classroomIdParams }), as
   res.json({ students });
 });
 
+// ส่งออกรายชื่อนักเรียนในห้องเป็น CSV
+router.get('/:classroomId/students/export', validate({ params: classroomIdParams }), async (req, res) => {
+  const { filename, classroomName, content } = await classroomService.exportClassroomStudentsCsv(
+    req.user.id,
+    req.params.classroomId,
+  );
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(`${classroomName}-students.csv`)}`,
+  );
+  res.send(content);
+});
+
 // เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+")
 router.post(
   '/:classroomId/students',

@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { ApiError, publicUser } from '../lib/errors.js';
 import { hashPassword } from '../lib/password.js';
 import { getOwnedClassroom, getOwnedCourse } from '../lib/access.js';
+import { toCsv } from '../lib/csv.js';
 
 const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -98,6 +99,32 @@ export async function listStudents(classroomId) {
     ...publicUser(enrollment.student),
     enrolledAt: enrollment.enrolledAt,
   }));
+}
+
+const CSV_STUDENT_HEADERS = ['ลำดับ', 'รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'สถานะบัญชี', 'วันที่เข้าห้อง'];
+
+/**
+ * ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (สำหรับครู) — เปิดใน Excel ได้ทันที (UTF-8 BOM)
+ */
+export async function exportClassroomStudentsCsv(teacherId, classroomId) {
+  const classroom = await getOwnedClassroom(teacherId, classroomId);
+  const students = await listStudents(classroomId);
+
+  const rows = students.map((student, index) => [
+    index + 1,
+    student.studentCode ?? '',
+    student.fullName,
+    student.email,
+    student.isActive ? 'ใช้งาน' : 'ระงับ',
+    student.enrolledAt ? new Date(student.enrolledAt).toISOString() : '',
+  ]);
+
+  return {
+    classroomName: classroom.name,
+    filename: `classroom-${classroom.id}-students.csv`,
+    count: students.length,
+    content: toCsv(CSV_STUDENT_HEADERS, rows),
+  };
 }
 
 /**
