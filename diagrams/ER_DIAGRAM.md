@@ -91,6 +91,7 @@ erDiagram
         uuid course_id FK "References COURSES (optional)"
         uuid teacher_id FK "References USERS(TEACHER)"
         int time_limit_minutes "Time limit (null = unlimited)"
+        string[] allowed_ip_ranges "Allowed client IPs/CIDRs (empty = any)"
         enum default_display_mode "SINGLE_PAGE or PAGINATED"
         int questions_per_page "Default items per page"
         decimal total_points "Calculated sum of question points"
@@ -192,7 +193,7 @@ erDiagram
 - **enrollments**: ความสัมพันธ์ N:M ระหว่างนักเรียนกับห้องเรียน พร้อม constraint `UNIQUE(classroom_id, student_id)` เพื่อป้องกันการลงทะเบียนซ้ำ
 
 ### 2.3 ตาราง `exams` & `exam_assignments` (ชุดข้อสอบและการมอบหมาย)
-- **exams**: ชุดข้อสอบที่ครูสร้างขึ้น ระบุประเภทเวลาสอบ (`time_limit_minutes`), โหมดแสดงผลเริ่มต้น (`default_display_mode`: `SINGLE_PAGE` หรือ `PAGINATED`), และสถานะชุดข้อสอบ (`DRAFT`, `PUBLISHED`, `CLOSED`)
+- **exams**: ชุดข้อสอบที่ครูสร้างขึ้น ระบุประเภทเวลาสอบ (`time_limit_minutes`), โหมดแสดงผลเริ่มต้น (`default_display_mode`: `SINGLE_PAGE` หรือ `PAGINATED`), รายการ IP ที่อนุญาตให้เข้าทำข้อสอบ (`allowed_ip_ranges` — ว่าง = ไม่จำกัด) และสถานะชุดข้อสอบ (`DRAFT`, `PUBLISHED`, `CLOSED`)
 - **exam_assignments**: ตารางเชื่อมระหว่างข้อสอบกับห้องเรียน ช่วยให้ข้อสอบ 1 ชุดสามารถมอบหมายให้หลายห้องเรียนได้ และกำหนดช่วงเวลาสอบ (`available_from`, `available_to`) แยกตามห้องได้
 
 ### 2.4 ตาราง `questions` & `choices` (โจทย์ข้อสอบและตัวเลือก)

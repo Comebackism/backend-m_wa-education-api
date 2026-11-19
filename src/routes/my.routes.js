@@ -40,18 +40,21 @@ router.get('/exams', async (req, res) => {
   res.json({ exams });
 });
 
-// รายละเอียดข้อสอบ (ไม่มีเฉลย)
+// รายละเอียดข้อสอบ (ไม่มีเฉลย) — ตรวจ IP restriction ด้วยถ้าข้อสอบตั้งไว้
 router.get('/exams/:examId', validate({ params: idParams('examId') }), async (req, res) => {
-  const exam = await examService.getStudentExamDetail(req.params.examId, req.user.id);
+  const exam = await examService.getStudentExamDetail(req.params.examId, req.user.id, { clientIp: req.ip });
   res.json({ exam });
 });
 
-// เริ่มทำข้อสอบ (หรือทำต่อจากใบเดิมที่ยังไม่ส่ง)
+// เริ่มทำข้อสอบ (หรือทำต่อจากใบเดิมที่ยังไม่ส่ง) — ตรวจ IP restriction ตอนเข้าทำ
 router.post(
   '/exams/:examId/submissions',
   validate({ params: idParams('examId'), body: z.object({ displayMode: displayMode.optional() }) }),
   async (req, res) => {
-    const submission = await submissionService.startSubmission(req.params.examId, req.user.id, req.body);
+    const submission = await submissionService.startSubmission(req.params.examId, req.user.id, {
+      displayMode: req.body.displayMode,
+      clientIp: req.ip,
+    });
     res.status(201).json({ submission });
   },
 );

@@ -39,10 +39,15 @@ async function lockSubmission(tx, submissionId, studentId) {
  * เริ่มทำข้อสอบ — ถ้าเคยเริ่มไว้แล้วและยังไม่ส่ง จะคืนใบเดิม (ทำต่อได้)
  * กำหนด expiresAt จาก timeLimitMinutes ของข้อสอบ
  */
-export async function startSubmission(examId, studentId, { displayMode } = {}) {
-  const exam = await getExamForStudent(examId, studentId, {
-    _count: { select: { questions: true } },
-  });
+export async function startSubmission(examId, studentId, { displayMode, clientIp } = {}) {
+  const exam = await getExamForStudent(
+    examId,
+    studentId,
+    {
+      _count: { select: { questions: true } },
+    },
+    { clientIp },
+  );
 
   if (exam._count.questions === 0) throw ApiError.badRequest('ข้อสอบชุดนี้ยังไม่มีข้อคำถาม');
 

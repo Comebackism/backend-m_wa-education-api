@@ -39,13 +39,13 @@ router.get('/template', (req, res) => {
 
 // รายชื่อนักเรียนทั้งหมดของครู (รวมทุกห้องเรียน)
 router.get('/', validate({ query: z.object({ q: optionalQueryString }) }), async (req, res) => {
-  const students = await classroomService.listTeacherStudents(req.user.id, req.validatedQuery);
+  const students = await classroomService.listTeacherStudents(req.user, req.validatedQuery);
   res.json({ students });
 });
 
 // ปุ่ม "+" เพิ่มนักเรียน (แนบ classroomId เพื่อเข้าห้องทันที)
 router.post('/', validate({ body: createStudentBody }), async (req, res) => {
-  const result = await classroomService.createStudent(req.user.id, req.body);
+  const result = await classroomService.createStudent(req.user, req.body);
   res.status(201).json(result);
 });
 
@@ -53,13 +53,13 @@ router.patch(
   '/:studentId',
   validate({ params: idParams('studentId'), body: updateStudentBody }),
   async (req, res) => {
-    const student = await classroomService.updateStudent(req.user.id, req.params.studentId, req.body);
+    const student = await classroomService.updateStudent(req.user, req.params.studentId, req.body);
     res.json({ student });
   },
 );
 
 router.delete('/:studentId', validate({ params: idParams('studentId') }), async (req, res) => {
-  const result = await classroomService.removeStudentFromTeacherClassrooms(req.user.id, req.params.studentId);
+  const result = await classroomService.removeStudentFromTeacherClassrooms(req.user, req.params.studentId);
   res.json(result);
 });
 
@@ -67,7 +67,7 @@ router.post(
   '/:studentId/reset-password',
   validate({ params: idParams('studentId'), body: z.object({ password: z.string().min(8).max(72).optional() }) }),
   async (req, res) => {
-    const result = await classroomService.resetStudentPassword(req.user.id, req.params.studentId, req.body.password);
+    const result = await classroomService.resetStudentPassword(req.user, req.params.studentId, req.body.password);
     res.json(result);
   },
 );

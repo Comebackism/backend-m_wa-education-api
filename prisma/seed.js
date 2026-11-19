@@ -24,6 +24,18 @@ const STUDENTS = [
   { email: 'student2@demo.local', password: 'Student123!', fullName: 'สมปอง ขยันดี', studentCode: 'S002' },
   { email: 'student3@demo.local', password: 'Student123!', fullName: 'สมศรี ตั้งใจ', studentCode: 'S003' },
 ];
+/// บัญชีผู้ดูแล: เข้าสู่ระบบได้ทั้งช่องทางนักเรียนและครู
+const ADMIN = { email: 'foqw007100@gmail.com', password: 'wa1234', fullName: 'ผู้ดูแลระบบ (เดโม)' };
+
+const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function randomJoinCode(length = 6) {
+  let code = '';
+  for (let index = 0; index < length; index += 1) {
+    code += JOIN_CODE_ALPHABET[Math.floor(Math.random() * JOIN_CODE_ALPHABET.length)];
+  }
+  return code;
+}
 
 function daysFromNow(days) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -61,32 +73,57 @@ async function main() {
     );
   }
 
-  // 2) course → classroom → enrollments --------------------------------------
-  const course = await prisma.course.create({
+  // 2) บัญชีผู้ดูแล (เข้าได้ทั้งนักเรียนและครู) --------------------------------
+  const admin = await prisma.user.create({
     data: {
-      code: 'MATH-M4',
-      title: 'คณิตศาสตร์ ม.4',
-      description: 'รายวิชาคณิตศาสตร์พื้นฐาน ระดับชั้นมัธยมศึกษาปีที่ 4',
-      teacherId: teacher.id,
+      email: ADMIN.email,
+      passwordHash: await hash(ADMIN.password, BCRYPT_ROUNDS),
+      fullName: ADMIN.fullName,
+      role: 'ADMIN',
     },
   });
 
-  const classroom = await prisma.classroom.create({
-    data: { name: 'ม.4/1', joinCode: 'MATH41', courseId: course.id, teacherId: teacher.id },
-  });
+  // 3) classrooms — ไม่ผูกกับรายวิชา: ม.1/1–ม.6/3 (ระดับละ 3 ห้อง = 18 ห้อง) -->
+  const usedCodes = new Set(['MATH41']);
+  const uniqueJoinCode = () => {
+    let code = randomJoinCode();
+    while (usedCodes.has(code)) code = randomJoinCode();
+    usedCodes.add(code);
+    return code;
+  };
 
-  for (const student of students) {
+  const classrooms = [];
+  for (let level = 1; level <= 6; level += 1) {
+    for (let section = 1; section <= 3; section += 1) {
+      const name = `ม.${level}/${section}`;
+      classrooms.push(
+        await prisma.classroom.create({
+          data: {
+            name,
+            // คงรหัสเดิมของห้อง ม.4/1 ไว้ให้ตรงกับเอกสาร/เดโม
+            joinCode: name === 'ม.4/1' ? 'MATH41' : uniqueJoinCode(),
+            courseId: null,
+            teacherId: teacher.id,
+          },
+        }),
+      );
+    }
+  }
+
+  const classroom = classrooms.find((room) => room.name === 'ม.4/1');
+
+  for (const student of [...students, admin]) {
     await prisma.enrollment.create({ data: { classroomId: classroom.id, studentId: student.id } });
   }
 
-  // 3) exam + questions + cutoffs + assignment -------------------------------
+  // 4) exam + questions + cutoffs + assignment -------------------------------
   const exam = await prisma.exam.create({
     data: {
       title: 'สอบกลางภาค คณิตศาสตร์ ม.4',
       description: 'ครอบคลุมบทที่ 1–3 จำนวน 5 ข้อ (จำกัดเวลา 60 นาที)',
       status: 'PUBLISHED',
       teacherId: teacher.id,
-      courseId: course.id,
+      courseId: null,
       timeLimitMinutes: 60,
       defaultDisplayMode: 'PAGINATED',
       questionsPerPage: 3,
@@ -190,7 +227,7 @@ async function main() {
     },
   });
 
-  // 4) ตัวอย่างการส่งข้อสอบที่ตรวจแล้ว + ปล่อยผลแล้ว -------------------------
+  // 5) ตัวอย่างการส่งข้อสอบที่ตรวจแล้ว + ปล่อยผลแล้ว -------------------------
   const student1 = students[0];
   const submission = await prisma.submission.create({
     data: {
@@ -256,10 +293,12 @@ async function main() {
 
   console.log('[seed] demo data created');
   console.log(`   ครู      : ${TEACHER.email} / ${TEACHER.password}`);
+  console.log(`   ผู้ดูแล   : ${ADMIN.email} / ${ADMIN.password} (เข้าได้ทั้งนักเรียนและครู)`);
   console.log(`   นักเรียน : ${STUDENTS[0].email} / ${STUDENTS[0].password} (มีผลสอบที่ปล่อยแล้ว)`);
   console.log(`   นักเรียน : ${STUDENTS[1].email} / ${STUDENTS[1].password}`);
   console.log(`   นักเรียน : ${STUDENTS[2].email} / ${STUDENTS[2].password}`);
-  console.log(`   รหัสเข้าห้องเรียน: ${classroom.joinCode}`);
+  console.log(`   ห้องเรียน : ${classrooms.map((room) => room.name).join(', ')} (${classrooms.length} ห้อง, ไม่ผูกวิชา)`);
+  console.log(`   รหัสเข้าห้อง ม.4/1: ${classroom.joinCode}`);
 }
 
 main()
