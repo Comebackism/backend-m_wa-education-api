@@ -1,6 +1,9 @@
-import { extname } from 'node:path';
-import { parse as parseCsv } from 'csv-parse/sync';
-import { ApiError } from './errors.js';
+import { decodeCsvBuffer, parseTabularFileRows } from './tabularFile.js';
+
+// ตัวช่วยอ่านไฟล์ CSV/.xlsx ถูกย้ายไป ./tabularFile.js แล้ว
+// re-export ไว้เพื่อไม่ให้โค้ด/เทสต์เดิมที่ import จากไฟล์นี้พัง
+export { decodeCsvBuffer };
+export { parseTabularFileRows as parseQuestionFileRows };
 
 /**
  * นำเข้าข้อคำถามจากไฟล์ CSV / Excel (.xlsx)
@@ -96,77 +99,11 @@ function cellText(value) {
   return String(value).replace(/\u00a0/g, ' ').trim();
 }
 
-/**
- * ถอดรหัสไฟล์ CSV
- * Excel ภาษาไทยมักบันทึกเป็น ANSI (cp874/windows-874) ทำให้ภาษาไทยเพี้ยนถ้าอ่านเป็น UTF-8
- * จึงลอง UTF-8 แบบเข้มก่อน ถ้าไม่ผ่านค่อยตกไปที่ windows-874
- */
-export function decodeCsvBuffer(buffer) {
-  if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
-    return buffer.subarray(3).toString('utf8');
-  }
-
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-  } catch {
-    try {
-      return new TextDecoder('windows-874').decode(buffer);
-    } catch {
-      return buffer.toString('utf8');
-    }
-  }
+/** อ่านไฟล์ → ตรวจ → ได้รายการข้อคำถามที่พร้อมสร้าง */
+export async function readQuestionImportFile(buffer, filename) {
+  const rows = await parseTabularFileRows(buffer, filename);
+  return rowsToQuestions(rows);
 }
-
-async function parseXlsxRows(buffer) {
-  // import แบบ dynamic เพื่อไม่ให้ exceljs ถูกโหลดตอนไม่ได้ใช้ endpoint นี้
-  const { default: ExcelJS } = await import('exceljs');
-  const workbook = new ExcelJS.Workbook();
-
-  try {
-    await workbook.xlsx.load(buffer);
-  } catch {
-    throw ApiError.badRequest('อ่านไฟล์ Excel ไม่สำเร็จ — ไฟล์อาจเสียหายหรือไม่ใช่ .xlsx');
-  }
-
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
-
-  const rows = [];
-  sheet.eachRow({ includeEmpty: true }, (row) => {
-    const cells = [];
-    const width = Math.max(row.cellCount, 1);
-    for (let column = 1; column <= width; column += 1) {
-      cells.push(row.getCell(column).text ?? '');
-    }
-    rows.push(cells);
-  });
-
-  return rows;
-}
-
-/** แปลงไฟล์ → ตาราง (array ของแถว) ตามนามสกุลไฟล์ */
-export async function parseQuestionFileRows(buffer, filename) {
-  const ext = extname(filename ?? '').toLowerCase();
-
-  if (ext === '.csv') {
-    try {
-      return parseCsv(decodeCsvBuffer(buffer), {
-        bom: true,
-        trim: true,
-        relax_column_count: true,
-        relax_quotes: true,
-        skip_empty_lines: false,
-      });
-    } catch (error) {
-      throw ApiError.badRequest(`อ่านไฟล์ CSV ไม่สำเร็จ: ${error.message}`);
-    }
-  }
-
-  if (ext === '.xlsx') return parseXlsxRows(buffer);
-
-  throw ApiError.badRequest('รองรับเฉพาะไฟล์ .csv และ .xlsx (.xls แบบเก่ายังไม่รองรับ)');
-}
-
 /**
  * แปลงตาราง → รายการข้อคำถาม พร้อม error ระดับแถว
  * @returns {{ questions: Array, errors: Array<{row:number, message:string}> }}
@@ -295,10 +232,4 @@ export function rowsToQuestions(rows) {
   }
 
   return { questions, errors };
-}
-
-/** อ่านไฟล์ → ตรวจ → ได้รายการข้อคำถามที่พร้อมสร้าง */
-export async function readQuestionImportFile(buffer, filename) {
-  const rows = await parseQuestionFileRows(buffer, filename);
-  return rowsToQuestions(rows);
 }

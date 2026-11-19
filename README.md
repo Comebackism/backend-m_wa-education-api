@@ -524,6 +524,7 @@ curl http://localhost:4000/health
 | GET/PATCH/DELETE | `/api/classrooms/:classroomId` | รายละเอียด (รวม students + examAssignments) / แก้ไข / ลบ |
 | GET | `/api/classrooms/:classroomId/students` | รายชื่อนักเรียนในห้อง |
 | GET | `/api/classrooms/:classroomId/students/export` | ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (UTF-8 เปิดใน Excel ได้) |
+| POST | `/api/classrooms/:classroomId/students/import` | นำเข้ารายชื่อนักเรียนจากไฟล์ CSV / `.xlsx` (multipart ฟิลด์ `file`; `?dryRun=true` = ตรวจ+พรีวิวโดยไม่บันทึก; ตรวจทุกแถวก่อนแบบ all-or-nothing) |
 | POST | `/api/classrooms/:classroomId/students` | เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+") |
 | DELETE | `/api/classrooms/:classroomId/students/:studentId` | เอานักเรียนออกจากห้อง |
 | GET | `/api/students` | รายชื่อนักเรียนทั้งหมดของครู (รองรับ `?q=`) |
@@ -911,8 +912,8 @@ npm run test:realtime
 - Realtime แบบ multi-instance ต้องเพิ่ม adapter กลาง เช่น `@socket.io/redis-adapter`
   (ห้อง `user:<id>` จะไม่ข้าม process กันเอง)
 - ยังไม่มี automated test suite (unit/integration) นอกเหนือจาก realtime smoke test
-- **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 ข้อต่อครั้ง
-- **นำเข้ารายชื่อนักเรียน** ทำได้แค่ดาวน์โหลดแม่แบบ (`GET /api/students/template`) — ยังไม่มี endpoint รับไฟล์นำเข้าเป็นชุด
+- **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 แถวต่อครั้ง
+- **นำเข้ารายชื่อนักเรียน** ใช้ `POST /api/classrooms/:classroomId/students/import` (multipart ฟิลด์ `file`) — ตรวจทุกแถวก่อนแบบ all-or-nothing; คนที่มีบัญชีอยู่แล้วจะถูกผูกเข้าห้องให้
 - ยังไม่มี **คลังข้อคำถาม (Question Bank)** แยกจากชุดข้อสอบ (สคีมาผูก `Question` เข้ากับ `Exam` เสมอ)
 - **IP restriction** ตรวจเฉพาะตอน "เข้าทำ" (ดึงข้อสอบ/เริ่มทำ) ไม่ได้ตรวจทุกคำขอ และอ้าง `req.ip` ตาม `trust proxy` — ถ้ารันหลัง reverse proxy ต้องตั้ง `trust proxy` ให้ถูก (production ตั้งไว้แล้ว)
 

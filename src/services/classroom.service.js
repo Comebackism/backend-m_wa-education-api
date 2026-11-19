@@ -3,6 +3,7 @@ import { ApiError, publicUser } from '../lib/errors.js';
 import { hashPassword } from '../lib/password.js';
 import { getOwnedClassroom, getOwnedCourse, actorId, isAdminActor } from '../lib/access.js';
 import { toCsv } from '../lib/csv.js';
+import { STUDENT_IMPORT_HEADERS, readStudentRosterFile } from '../lib/studentImport.js';
 
 const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -116,11 +117,11 @@ export async function listStudents(classroomId) {
 const CSV_STUDENT_HEADERS = ['ลำดับ', 'รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'สถานะบัญชี', 'วันที่เข้าห้อง'];
 
 /**
- * คอลัมน์ของแม่แบบนำเข้ารายชื่อนักเรียน (ตรงกับที่ต้องใช้ตอนนำเข้า)
+ * คอลัมน์ของแม่แบบนำเข้ารายชื่อนักเรียน (ใช้ชุดเดียวกับตัวอ่านไฟล์ใน lib/studentImport.js)
  * - รหัสนักเรียน: เว้นว่างได้ ระบบจะไม่ผูกให้
  * - รหัสผ่าน: เว้นว่างได้ ระบบจะสุ่มให้แล้วคืนค่ากลับมา
  */
-const CSV_STUDENT_TEMPLATE_HEADERS = ['รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'รหัสผ่าน'];
+const CSV_STUDENT_TEMPLATE_HEADERS = STUDENT_IMPORT_HEADERS;
 
 /** แม่แบบ CSV ว่างสำหรับกรอกรายชื่อนักเรียน (ปุ่ม "ดาวน์โหลดแม่แบบ") */
 export function buildStudentRosterTemplateCsv() {
@@ -200,6 +201,162 @@ export async function addStudentToClassroom(teacherId, classroomId, payload) {
   await prisma.enrollment.create({ data: { classroomId, studentId: student.id } });
 
   return { student: publicUser(student), temporaryPassword };
+}
+
+/** ข้อความสรุปผลการนำเข้ารายชื่อ ให้ frontend แสดงในกล่องแจ้งเตือนได้เลย */
+function buildStudentImportMessage(created, enrolled, skipped) {
+  const parts = [];
+  if (created > 0) parts.push(`สร้างบัญชีใหม่ ${created} คน`);
+  if (enrolled > 0) parts.push(`ผูกเข้าห้อง ${enrolled} คน`);
+  if (skipped > 0) parts.push(`ข้าม ${skipped} คน (อยู่ในห้องนี้แล้ว)`);
+  if (parts.length === 0) return 'ไม่มีรายชื่อที่ต้องนำเข้า';
+  return `นำเข้ารายชื่อนักเรียนสำเร็จ — ${parts.join(' · ')}`;
+}
+
+/**
+ * นำเข้ารายชื่อนักเรียนจากไฟล์ CSV / .xlsx (ปุ่ม "นำเข้า CSV" ของครู)
+ * - ตรวจทุกแถวก่อนแบบ all-or-nothing: ถ้ามีแถวผิด (รูปแบบ หรือชนกับบัญชีเดิม)
+ *   จะไม่นำเข้าสักคน แล้วคืน error.details = [{ row, message }] ให้แก้ไฟล์
+ * - คนที่มีบัญชีอยู่แล้ว → ผูกเข้าห้องให้ · ถ้าอยู่ในห้องนี้แล้ว → ข้าม (ไม่ถือเป็น error)
+ * - คนที่ยังไม่มีบัญชี → สร้างบัญชี STUDENT ให้ พร้อมรหัสผ่าน (ครูระบุ หรือระบบสุ่ม 12 ตัว)
+ * - dryRun = true → ตรวจและสรุปผลโดยไม่บันทึก
+ */
+export async function importStudentsFromFile(teacherId, classroomId, { buffer, filename }, { dryRun = false } = {}) {
+  await getOwnedClassroom(teacherId, classroomId);
+
+  const { students, errors } = await readStudentRosterFile(buffer, filename);
+  if (errors.length > 0) {
+    throw ApiError.badRequest(`ไฟล์มีข้อผิดพลาด ${errors.length} แถว — ยังไม่นำเข้ารายชื่อใดเลย`, errors);
+  }
+
+  // ---- ตรวจกับฐานข้อมูลก่อน (all-or-nothing) ----
+  const emails = students.map((student) => student.email);
+  const codes = students.map((student) => student.studentCode).filter(Boolean);
+
+  const [usersByEmail, usersByCode] = await Promise.all([
+    prisma.user.findMany({ where: { email: { in: emails } } }),
+    codes.length > 0 ? prisma.user.findMany({ where: { studentCode: { in: codes } } }) : Promise.resolve([]),
+  ]);
+  const emailMap = new Map(usersByEmail.map((user) => [user.email, user]));
+  const codeMap = new Map(usersByCode.map((user) => [user.studentCode, user]));
+
+  const dbErrors = [];
+  const plan = [];
+
+  for (const row of students) {
+    const matchEmail = emailMap.get(row.email) ?? null;
+    const matchCode = row.studentCode ? codeMap.get(row.studentCode) ?? null : null;
+
+    if (matchEmail && matchEmail.role !== 'STUDENT') {
+      dbErrors.push({ row: row.rowNumber, message: 'อีเมลนี้ถูกใช้โดยบัญชีที่ไม่ใช่บทบาทนักเรียน' });
+      continue;
+    }
+    if (matchCode && matchCode.role !== 'STUDENT') {
+      dbErrors.push({ row: row.rowNumber, message: 'รหัสนักเรียนนี้ถูกใช้โดยบัญชีที่ไม่ใช่บทบาทนักเรียน' });
+      continue;
+    }
+    if (matchEmail && matchCode && matchEmail.id !== matchCode.id) {
+      dbErrors.push({ row: row.rowNumber, message: 'อีเมลกับรหัสนักเรียนตรงกับบัญชีคนละคน' });
+      continue;
+    }
+
+    plan.push({ ...row, existing: matchEmail ?? matchCode ?? null });
+  }
+
+  if (dbErrors.length > 0) {
+    throw ApiError.badRequest(`ไฟล์มีข้อผิดพลาด ${dbErrors.length} แถว — ยังไม่นำเข้ารายชื่อใดเลย`, dbErrors);
+  }
+
+  // ---- คนที่มีบัญชีแล้วอยู่ในห้องนี้อยู่หรือยัง ----
+  const existingIds = plan.filter((row) => row.existing).map((row) => row.existing.id);
+  const enrollments =
+    existingIds.length > 0
+      ? await prisma.enrollment.findMany({
+          where: { classroomId, studentId: { in: existingIds } },
+          select: { studentId: true },
+        })
+      : [];
+  const enrolledIds = new Set(enrollments.map((enrollment) => enrollment.studentId));
+
+  const items = plan.map((row) => {
+    if (row.existing) {
+      return {
+        row: row.rowNumber,
+        email: row.existing.email,
+        fullName: row.existing.fullName,
+        studentCode: row.existing.studentCode ?? row.studentCode,
+        status: enrolledIds.has(row.existing.id) ? 'skipped' : 'enrolled',
+        temporaryPassword: null,
+      };
+    }
+    return {
+      row: row.rowNumber,
+      email: row.email,
+      fullName: row.fullName,
+      studentCode: row.studentCode,
+      status: 'created',
+      temporaryPassword: row.password ?? randomPassword(),
+    };
+  });
+
+  const created = items.filter((item) => item.status === 'created').length;
+  const enrolled = items.filter((item) => item.status === 'enrolled').length;
+  const skipped = items.filter((item) => item.status === 'skipped').length;
+
+  if (dryRun) {
+    return {
+      classroomId,
+      dryRun: true,
+      total: students.length,
+      wouldCreate: created,
+      wouldEnroll: enrolled,
+      wouldSkip: skipped,
+      students: items.map(({ temporaryPassword, ...rest }) => rest),
+    };
+  }
+
+  // ---- สร้างบัญชีใหม่ + ผูกเข้าห้องใน transaction เดียว ----
+  const passwordHashes = new Map();
+  for (const item of items) {
+    if (item.status === 'created') {
+      passwordHashes.set(item.row, await hashPassword(item.temporaryPassword));
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      if (item.status === 'skipped') continue;
+
+      let studentId;
+      if (item.status === 'created') {
+        const student = await tx.user.create({
+          data: {
+            email: item.email,
+            fullName: item.fullName,
+            studentCode: item.studentCode ?? null,
+            role: 'STUDENT',
+            passwordHash: passwordHashes.get(item.row),
+          },
+        });
+        studentId = student.id;
+      } else {
+        studentId = plan.find((row) => row.rowNumber === item.row).existing.id;
+      }
+
+      await tx.enrollment.create({ data: { classroomId, studentId } });
+    }
+  });
+
+  return {
+    classroomId,
+    dryRun: false,
+    total: students.length,
+    created,
+    enrolled,
+    skipped,
+    message: buildStudentImportMessage(created, enrolled, skipped),
+    students: items,
+  };
 }
 
 export async function removeStudentFromClassroom(teacherId, classroomId, studentId) {

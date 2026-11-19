@@ -354,6 +354,66 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/classrooms/{classroomId}/students/import': {
+      parameters: [pathParam('classroomId', 'รหัสห้องเรียน')],
+      post: {
+        tags: ['Classrooms'],
+        summary: 'นำเข้ารายชื่อนักเรียนจากไฟล์ CSV / Excel (teacher)',
+        description:
+          'อัปโหลดแบบ `multipart/form-data` ฟิลด์ชื่อ `file` (`.csv` หรือ `.xlsx`, ไม่เกิน 5 MB) · ' +
+          'โครงไฟล์เหมือนแม่แบบจาก `GET /api/students/template` (1 แถว = 1 นักเรียน) · ' +
+          'ตรวจทุกแถวก่อนแบบ all-or-nothing: ถ้ามีแถวผิดจะไม่นำเข้าสักคน แล้วคืน `error.details` เป็น `[{ row, message }]` ให้แก้ · ' +
+          'คนที่มีบัญชีอยู่แล้วจะถูกผูกเข้าห้องให้ (ถ้าอยู่ในห้องนี้แล้ว = ข้าม) · คนใหม่จะถูกสร้างบัญชีพร้อมรหัสผ่าน (คืน `temporaryPassword`) · ' +
+          '`?dryRun=true` = ตรวจและพรีวิวโดยไม่บันทึก (HTTP 200)',
+        parameters: [
+          { name: 'dryRun', in: 'query', required: false, description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก', schema: { type: 'string', enum: ['true', 'false'] } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: { type: 'string', format: 'binary', description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          ...created('นำเข้าสำเร็จ', {
+            type: 'object',
+            required: ['classroomId', 'total', 'created', 'enrolled', 'skipped', 'message'],
+            properties: {
+              classroomId: { type: 'string', format: 'uuid' },
+              dryRun: { type: 'boolean', enum: [false] },
+              total: { type: 'integer', description: 'จำนวนแถวข้อมูลในไฟล์' },
+              created: { type: 'integer', description: 'จำนวนบัญชีนักเรียนที่สร้างใหม่' },
+              enrolled: { type: 'integer', description: 'จำนวนคนที่มีบัญชีแล้วและถูกผูกเข้าห้อง' },
+              skipped: { type: 'integer', description: 'จำนวนคนที่อยู่ในห้องนี้อยู่แล้ว (ข้าม)' },
+              message: { type: 'string', description: 'ข้อความสรุปผลภาษาไทย พร้อมแสดงให้ครู' },
+              students: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    row: { type: 'integer', description: 'เลขแถวในไฟล์' },
+                    email: { type: 'string' },
+                    fullName: { type: 'string' },
+                    studentCode: { type: 'string', nullable: true },
+                    status: { type: 'string', enum: ['created', 'enrolled', 'skipped'] },
+                    temporaryPassword: { type: 'string', nullable: true, description: 'มีค่าเฉพาะบัญชีที่สร้างใหม่' },
+                  },
+                },
+              },
+            },
+          }),
+          ...pick(400, 401, 403, 404, 500),
+        },
+      },
+    },
     '/api/classrooms/{classroomId}/students/{studentId}': {
       parameters: [pathParam('classroomId', 'รหัสห้องเรียน'), pathParam('studentId', 'รหัสนักเรียน')],
       delete: {
