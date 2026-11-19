@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, studentOnly, teacherOnly } from '../middleware/auth.js';
-import { idParams, uuid } from '../validators/common.js';
+import { uploadSingleFile } from '../middleware/upload.js';
+import { idParams, uuid, booleanQuery } from '../validators/common.js';
+import { ApiError } from '../lib/errors.js';
 import * as classroomService from '../services/classroom.service.js';
 
 const router = Router();
@@ -88,6 +90,26 @@ router.get('/:classroomId/students/export', validate({ params: classroomIdParams
   );
   res.send(content);
 });
+
+// นำเข้ารายชื่อนักเรียนจากไฟล์ CSV / .xlsx (multipart, ฟิลด์ชื่อ "file")
+// ?dryRun=true → ตรวจไฟล์และพรีวิวโดยไม่บันทึก
+router.post(
+  '/:classroomId/students/import',
+  validate({ params: classroomIdParams, query: z.object({ dryRun: booleanQuery }) }),
+  uploadSingleFile('file'),
+  async (req, res) => {
+    if (!req.file) throw ApiError.badRequest('ต้องแนบไฟล์ในฟิลด์ "file" (.csv หรือ .xlsx)');
+
+    const result = await classroomService.importStudentsFromFile(
+      req.user,
+      req.params.classroomId,
+      { buffer: req.file.buffer, filename: req.file.originalname },
+      { dryRun: req.validatedQuery?.dryRun === true },
+    );
+
+    res.status(result.dryRun ? 200 : 201).json(result);
+  },
+);
 
 // เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+")
 router.post(

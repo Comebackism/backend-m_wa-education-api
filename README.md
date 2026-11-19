@@ -213,6 +213,9 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 - **refresh token** (ค่าเริ่มต้น 7 วัน) ถูก **rotate ทุกครั้ง** ที่ต่ออายุ — ตัวเก่าถูกเพิกถอนทันที
   และเก็บใน DB แบบ **hashed sha256** (`tokenHash` unique) ถ้า DB รั่วก็ยังปลอม token ไม่ได้
 - `POST /api/auth/logout` เพิกถอน refresh token (`204 No Content`)
+- `PATCH /api/auth/password` เปลี่ยนรหัสผ่านของบัญชีตัวเอง (นักเรียน/ครู/ผู้ดูแล)
+  — ต้องส่ง `currentPassword` + `newPassword` (8–72 ตัว, ต้องไม่ซ้ำของเดิม)
+  — สำเร็จแล้ว refresh token **ทุกตัว** ของบัญชีนั้นถูกเพิกถอน (เครื่องอื่นต้องล็อกอินใหม่) และคืน token ชุดใหม่ให้เครื่องที่เรียก
 - บัญชีที่ `isActive = false` จะถูกปฏิเสธทุกเส้นทาง (รวมถึงตอน refresh)
 - access token เก็บ issuer `wa-education-api` และมี `type: 'access' | 'refresh'` — ใช้สลับกันไม่ได้
 
@@ -521,6 +524,7 @@ curl http://localhost:4000/health
 | GET/PATCH/DELETE | `/api/classrooms/:classroomId` | รายละเอียด (รวม students + examAssignments) / แก้ไข / ลบ |
 | GET | `/api/classrooms/:classroomId/students` | รายชื่อนักเรียนในห้อง |
 | GET | `/api/classrooms/:classroomId/students/export` | ส่งออกรายชื่อนักเรียนในห้องเป็น CSV (UTF-8 เปิดใน Excel ได้) |
+| POST | `/api/classrooms/:classroomId/students/import` | นำเข้ารายชื่อนักเรียนจากไฟล์ CSV / `.xlsx` (multipart ฟิลด์ `file`; `?dryRun=true` = ตรวจ+พรีวิวโดยไม่บันทึก; ตรวจทุกแถวก่อนแบบ all-or-nothing) |
 | POST | `/api/classrooms/:classroomId/students` | เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+") |
 | DELETE | `/api/classrooms/:classroomId/students/:studentId` | เอานักเรียนออกจากห้อง |
 | GET | `/api/students` | รายชื่อนักเรียนทั้งหมดของครู (รองรับ `?q=`) |
@@ -688,6 +692,7 @@ curl -X POST http://localhost:4000/api/auth/logout -H "Content-Type: application
 | :--- | :--- | :--- |
 | `POST /api/auth/login` | ต่อ IP | **10 ครั้ง / 15 นาที** |
 | `POST /api/auth/teacher/register` และ `/student/register` | ต่อ IP | **20 ครั้ง / ชั่วโมง** |
+| `PATCH /api/auth/password` | ต่อ IP | **10 ครั้ง / 15 นาที** |
 
 > เกินเพดานจะได้ `429` พร้อมข้อความไทย ("พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง")
 
@@ -907,8 +912,8 @@ npm run test:realtime
 - Realtime แบบ multi-instance ต้องเพิ่ม adapter กลาง เช่น `@socket.io/redis-adapter`
   (ห้อง `user:<id>` จะไม่ข้าม process กันเอง)
 - ยังไม่มี automated test suite (unit/integration) นอกเหนือจาก realtime smoke test
-- **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 ข้อต่อครั้ง
-- **นำเข้ารายชื่อนักเรียน** ทำได้แค่ดาวน์โหลดแม่แบบ (`GET /api/students/template`) — ยังไม่มี endpoint รับไฟล์นำเข้าเป็นชุด
+- **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 แถวต่อครั้ง
+- **นำเข้ารายชื่อนักเรียน** ใช้ `POST /api/classrooms/:classroomId/students/import` (multipart ฟิลด์ `file`) — ตรวจทุกแถวก่อนแบบ all-or-nothing; คนที่มีบัญชีอยู่แล้วจะถูกผูกเข้าห้องให้
 - ยังไม่มี **คลังข้อคำถาม (Question Bank)** แยกจากชุดข้อสอบ (สคีมาผูก `Question` เข้ากับ `Exam` เสมอ)
 - **IP restriction** ตรวจเฉพาะตอน "เข้าทำ" (ดึงข้อสอบ/เริ่มทำ) ไม่ได้ตรวจทุกคำขอ และอ้าง `req.ip` ตาม `trust proxy` — ถ้ารันหลัง reverse proxy ต้องตั้ง `trust proxy` ให้ถูก (production ตั้งไว้แล้ว)
 

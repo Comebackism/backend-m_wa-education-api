@@ -20,6 +20,7 @@ const envSchema = z.object({
   /// เพดาน rate limit ตอน dev/test (production ตรึงค่าจริงไว้ใน middleware/rateLimit.js)
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   REGISTER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  CHANGE_PASSWORD_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   /// "true" = ปิด rate limit ทั้งหมด (มีผลเฉพาะเมื่อไม่ใช่ production)
   RATE_LIMIT_DISABLED: z.enum(['true', 'false']).optional(),
 });
