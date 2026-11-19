@@ -14,7 +14,8 @@ export function notFoundHandler(req, res) {
  * error handler ตัวสุดท้าย — แปลง error ทุกชนิดให้เป็น JSON รูปแบบเดียวกัน
  * { error: { code, message, details? } }
  */
-export function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
+export function errorHandler(err, req, res, _next) {
+  // Express ระบุ error middleware จาก arity 4 ตัว — ต้องคงพารามิเตอร์ที่ 4 ไว้ (แม้ไม่ใช้)
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
       error: { code: err.code, message: err.message, details: err.details },
@@ -46,7 +47,7 @@ export function errorHandler(err, req, res, next) { // eslint-disable-line no-un
   return res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',
-      message: isProduction ? 'เกิดข้อผิดพลาดภายในระบบ' : err?.message ?? 'unknown error',
+      message: isProduction ? 'เกิดข้อผิดพลาดภายในระบบ' : (err?.message ?? 'unknown error'),
       ...(isProduction ? {} : { stack: err?.stack }),
     },
   });

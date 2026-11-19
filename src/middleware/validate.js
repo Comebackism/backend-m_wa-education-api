@@ -19,10 +19,12 @@ export function validate(schemas) {
       if (result.success) {
         req[source] = result.data;
       } else {
-        issues.push(...result.error.issues.map((issue) => ({
-          field: [source, ...issue.path].join('.'),
-          message: issue.message,
-        })));
+        issues.push(
+          ...result.error.issues.map((issue) => ({
+            field: [source, ...issue.path].join('.'),
+            message: issue.message,
+          })),
+        );
       }
     }
 
@@ -31,10 +33,12 @@ export function validate(schemas) {
       if (result.success) {
         validated.query = result.data;
       } else {
-        issues.push(...result.error.issues.map((issue) => ({
-          field: ['query', ...issue.path].join('.'),
-          message: issue.message,
-        })));
+        issues.push(
+          ...result.error.issues.map((issue) => ({
+            field: ['query', ...issue.path].join('.'),
+            message: issue.message,
+          })),
+        );
       }
     }
 

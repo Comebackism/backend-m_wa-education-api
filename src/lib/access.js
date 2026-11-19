@@ -21,7 +21,8 @@ export function isAdminActor(actor) {
 export async function getOwnedCourse(actor, courseId) {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) throw ApiError.notFound('ไม่พบรายวิชา');
-  if (!isAdminActor(actor) && course.teacherId !== actorId(actor)) throw ApiError.forbidden('รายวิชานี้ไม่ใช่ของคุณ');
+  if (!isAdminActor(actor) && course.teacherId !== actorId(actor))
+    throw ApiError.forbidden('รายวิชานี้ไม่ใช่ของคุณ');
   return course;
 }
 
@@ -31,7 +32,8 @@ export async function getOwnedClassroom(actor, classroomId) {
     include: { course: true },
   });
   if (!classroom) throw ApiError.notFound('ไม่พบห้องเรียน');
-  if (!isAdminActor(actor) && classroom.teacherId !== actorId(actor)) throw ApiError.forbidden('ห้องเรียนนี้ไม่ใช่ของคุณ');
+  if (!isAdminActor(actor) && classroom.teacherId !== actorId(actor))
+    throw ApiError.forbidden('ห้องเรียนนี้ไม่ใช่ของคุณ');
   return classroom;
 }
 
@@ -94,7 +96,8 @@ export async function getExamForStudent(examId, studentId, include, { clientIp }
   );
 
   if (!assignment) throw ApiError.forbidden('คุณไม่ได้อยู่ในห้องเรียนที่ได้รับมอบหมายข้อสอบนี้');
-  if (assignment.availableFrom && now < assignment.availableFrom) throw ApiError.forbidden('ยังไม่ถึงเวลาทำข้อสอบ');
+  if (assignment.availableFrom && now < assignment.availableFrom)
+    throw ApiError.forbidden('ยังไม่ถึงเวลาทำข้อสอบ');
   if (assignment.availableTo && now > assignment.availableTo) throw ApiError.forbidden('เลยเวลาทำข้อสอบแล้ว');
   if (!isIpAllowed(clientIp, exam.allowedIpRanges)) {
     throw ApiError.forbidden('เครื่องนี้ไม่ได้รับอนุญาตให้ทำข้อสอบชุดนี้ (จำกัด IP) กรุณาเชื่อมต่อผ่านเครือข่ายที่กำหนด');

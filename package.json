@@ -17,7 +17,17 @@
     "studio": "prisma studio",
     "seed": "prisma db seed",
     "reset": "prisma migrate reset --force",
-    "test:realtime": "node scripts/realtime-smoke.mjs"
+    "test:realtime": "node scripts/realtime-smoke.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.mjs\" \"prisma/**/*.js\" \"*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.mjs\" \"prisma/**/*.js\" \"*.js\"",
+    "test:unit": "node --import ./tests/setup-env.js --test \"tests/unit/**/*.test.js\"",
+    "test:integration": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/integration/**/*.test.js\"",
+    "test": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "test:coverage": "node --import ./tests/setup-env.js --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=\"src/**\" \"tests/**/*.test.js\"",
+    "test:ci": "node scripts/ci-test.mjs"
   },
   "keywords": [
     "exam",
@@ -48,6 +58,10 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
     "prisma": "^7.10.1",
     "socket.io-client": "^4.8.4"
   }

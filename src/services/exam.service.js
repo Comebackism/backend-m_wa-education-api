@@ -1,6 +1,13 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
-import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam, actorId, isAdminActor } from '../lib/access.js';
+import {
+  getExamForStudent,
+  getOwnedClassroom,
+  getOwnedCourse,
+  getOwnedExam,
+  actorId,
+  isAdminActor,
+} from '../lib/access.js';
 import { recalculateExamTotals, recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeStudentSubmission, toNumber } from '../lib/serialize.js';
 import { toCsv } from '../lib/csv.js';
@@ -80,7 +87,10 @@ export async function getExamDetail(teacherId, examId) {
     _count: { _all: true },
   });
 
-  return { ...exam, submissionStats: statusCounts.map((row) => ({ status: row.status, count: row._count._all })) };
+  return {
+    ...exam,
+    submissionStats: statusCounts.map((row) => ({ status: row.status, count: row._count._all })),
+  };
 }
 
 export async function updateExam(teacherId, examId, payload) {
@@ -96,7 +106,9 @@ export async function updateExam(teacherId, examId, payload) {
       ...(payload.timeLimitMinutes !== undefined ? { timeLimitMinutes: payload.timeLimitMinutes } : {}),
       ...(payload.defaultDisplayMode !== undefined ? { defaultDisplayMode: payload.defaultDisplayMode } : {}),
       ...(payload.questionsPerPage !== undefined ? { questionsPerPage: payload.questionsPerPage } : {}),
-      ...(payload.allowedIpRanges !== undefined ? { allowedIpRanges: normalizeIpRules(payload.allowedIpRanges) } : {}),
+      ...(payload.allowedIpRanges !== undefined
+        ? { allowedIpRanges: normalizeIpRules(payload.allowedIpRanges) }
+        : {}),
     },
   });
 }
@@ -171,12 +183,18 @@ export async function addQuestion(teacherId, examId, payload) {
 export async function updateQuestion(teacherId, examId, questionId, payload) {
   await getOwnedExam(teacherId, examId);
 
-  const existing = await prisma.question.findFirst({ where: { id: questionId, examId }, include: questionInclude });
+  const existing = await prisma.question.findFirst({
+    where: { id: questionId, examId },
+    include: questionInclude,
+  });
   if (!existing) throw ApiError.notFound('ไม่พบข้อสอบข้อนี้');
 
   const nextType = payload.type ?? existing.type;
   const nextChoices = payload.choices;
-  validateQuestionPayload(nextType, nextType === 'MULTIPLE_CHOICE' ? nextChoices ?? existing.choices : undefined);
+  validateQuestionPayload(
+    nextType,
+    nextType === 'MULTIPLE_CHOICE' ? (nextChoices ?? existing.choices) : undefined,
+  );
 
   const question = await prisma.$transaction(async (tx) => {
     if (nextChoices !== undefined) {
@@ -236,7 +254,12 @@ export function buildQuestionImportTemplateCsv() {
  * - ตรวจทุกแถวก่อน: ถ้ามีแถวผิดจะไม่นำเข้าสักข้อ (all-or-nothing) แล้วคืนเลขแถวที่ผิดให้แก้
  * - dryRun = true → ตรวจและสรุปผลโดยไม่บันทึก (ให้ครูตรวจไฟล์ก่อน)
  */
-export async function importQuestionsFromFile(teacherId, examId, { buffer, filename }, { dryRun = false } = {}) {
+export async function importQuestionsFromFile(
+  teacherId,
+  examId,
+  { buffer, filename },
+  { dryRun = false } = {},
+) {
   const exam = await getOwnedExam(teacherId, examId);
 
   if (exam.status !== 'DRAFT') {
@@ -325,7 +348,11 @@ export async function reorderQuestions(teacherId, examId, items) {
   await prisma.$transaction(
     items.map((item) => prisma.question.update({ where: { id: item.id }, data: { order: item.order } })),
   );
-  return prisma.question.findMany({ where: { examId }, orderBy: { order: 'asc' }, select: { id: true, order: true } });
+  return prisma.question.findMany({
+    where: { examId },
+    orderBy: { order: 'asc' },
+    select: { id: true, order: true },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +423,9 @@ export async function getCutoffs(teacherId, examId) {
 // ---------------------------------------------------------------------------
 
 export async function publishExam(teacherId, examId) {
-  const exam = await getOwnedExam(teacherId, examId, { _count: { select: { questions: true, assignments: true } } });
+  const exam = await getOwnedExam(teacherId, examId, {
+    _count: { select: { questions: true, assignments: true } },
+  });
   if (exam._count.questions === 0) throw ApiError.badRequest('ยังไม่มีข้อสอบในชุดนี้');
   if (exam._count.assignments === 0) throw ApiError.badRequest('ยังไม่ได้มอบหมายข้อสอบให้ห้องเรียนใดเลย');
 
@@ -445,7 +474,16 @@ export async function listStudentExams(studentId) {
       _count: { select: { questions: true } },
       submissions: {
         where: { studentId },
-        select: { id: true, status: true, startedAt: true, expiresAt: true, submittedAt: true, totalScore: true, percent: true, grade: true },
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          expiresAt: true,
+          submittedAt: true,
+          totalScore: true,
+          percent: true,
+          grade: true,
+        },
       },
     },
     orderBy: { updatedAt: 'desc' },

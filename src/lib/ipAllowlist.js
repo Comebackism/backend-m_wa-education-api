@@ -139,8 +139,14 @@ export function formatIp(ip) {
 
   if (bestLength < 2) return groups.map((group) => group.toString(16)).join(':');
 
-  const head = groups.slice(0, bestStart).map((group) => group.toString(16)).join(':');
-  const tail = groups.slice(bestStart + bestLength).map((group) => group.toString(16)).join(':');
+  const head = groups
+    .slice(0, bestStart)
+    .map((group) => group.toString(16))
+    .join(':');
+  const tail = groups
+    .slice(bestStart + bestLength)
+    .map((group) => group.toString(16))
+    .join(':');
   return `${head}::${tail}`;
 }
 
@@ -166,12 +172,19 @@ export function parseIpRule(raw) {
   const effective = prefix === null ? ip.bits : prefix;
   if (effective < 0 || effective > ip.bits) return null;
 
-  return { version: ip.version, bits: ip.bits, prefix: effective, network: ip.value & prefixMask(ip.bits, effective) };
+  return {
+    version: ip.version,
+    bits: ip.bits,
+    prefix: effective,
+    network: ip.value & prefixMask(ip.bits, effective),
+  };
 }
 
 /** client IP นี้ผ่านกฎหรือไม่ (ไม่มีกฎ = ผ่านทุก IP) */
 export function isIpAllowed(clientIp, rules) {
-  const list = Array.isArray(rules) ? rules.filter((rule) => typeof rule === 'string' && rule.trim() !== '') : [];
+  const list = Array.isArray(rules)
+    ? rules.filter((rule) => typeof rule === 'string' && rule.trim() !== '')
+    : [];
   if (list.length === 0) return true;
 
   const ip = normalizeIp(clientIp);

@@ -114,10 +114,12 @@ router.post(
 // เพิ่มนักเรียนเข้าห้อง (ปุ่ม "+")
 router.post(
   '/:classroomId/students',
-  validate({ params: classroomIdParams, body: addStudentBody.refine(
-    (data) => Boolean(data.studentId || data.email || data.studentCode),
-    { message: 'ต้องระบุ studentId, email หรือ studentCode อย่างใดอย่างหนึ่ง' },
-  ) }),
+  validate({
+    params: classroomIdParams,
+    body: addStudentBody.refine((data) => Boolean(data.studentId || data.email || data.studentCode), {
+      message: 'ต้องระบุ studentId, email หรือ studentCode อย่างใดอย่างหนึ่ง',
+    }),
+  }),
   async (req, res) => {
     const result = await classroomService.addStudentToClassroom(req.user, req.params.classroomId, req.body);
     res.status(201).json(result);

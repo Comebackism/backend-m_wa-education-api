@@ -16,7 +16,11 @@ router.get(
   '/exams/:examId/submissions',
   validate({ params: idParams('examId'), query: z.object({ status: submissionStatus.optional() }) }),
   async (req, res) => {
-    const submissions = await gradingService.listExamSubmissions(req.user, req.params.examId, req.validatedQuery);
+    const submissions = await gradingService.listExamSubmissions(
+      req.user,
+      req.params.examId,
+      req.validatedQuery,
+    );
     res.json({ submissions });
   },
 );
@@ -78,9 +82,13 @@ router.patch(
 );
 
 // ปุ่ม "ส่งผลไปให้นักเรียน"
-router.post('/submissions/:submissionId/release', validate({ params: idParams('submissionId') }), async (req, res) => {
-  const submission = await gradingService.releaseSubmission(req.user, req.params.submissionId);
-  res.json({ submission });
-});
+router.post(
+  '/submissions/:submissionId/release',
+  validate({ params: idParams('submissionId') }),
+  async (req, res) => {
+    const submission = await gradingService.releaseSubmission(req.user, req.params.submissionId);
+    res.json({ submission });
+  },
+);
 
 export default router;

@@ -19,7 +19,9 @@ const upload = multer({
     const ext = extname(file.originalname ?? '').toLowerCase();
     if (!ALLOWED_IMPORT_EXTENSIONS.includes(ext)) {
       callback(
-        ApiError.badRequest(`รองรับเฉพาะไฟล์ ${ALLOWED_IMPORT_EXTENSIONS.join(', ')} (ได้รับ "${ext || file.originalname}")`),
+        ApiError.badRequest(
+          `รองรับเฉพาะไฟล์ ${ALLOWED_IMPORT_EXTENSIONS.join(', ')} (ได้รับ "${ext || file.originalname}")`,
+        ),
       );
       return;
     }

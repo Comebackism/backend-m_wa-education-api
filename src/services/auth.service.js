@@ -1,12 +1,7 @@
 import { ApiError } from '../lib/errors.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
-import {
-  hashToken,
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-} from '../lib/jwt.js';
+import { hashToken, signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt.js';
 
 /**
  * ออก access + refresh token แล้วเก็บ refresh token แบบ hash ลง DB

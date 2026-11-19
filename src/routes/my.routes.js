@@ -30,7 +30,10 @@ router.get('/classrooms', async (req, res) => {
   });
 
   res.json({
-    classrooms: enrollments.map((enrollment) => ({ ...enrollment.classroom, enrolledAt: enrollment.enrolledAt })),
+    classrooms: enrollments.map((enrollment) => ({
+      ...enrollment.classroom,
+      enrolledAt: enrollment.enrolledAt,
+    })),
   });
 });
 
@@ -83,7 +86,11 @@ router.put(
     }),
   }),
   async (req, res) => {
-    const result = await submissionService.saveAnswers(req.params.submissionId, req.user.id, req.body.answers);
+    const result = await submissionService.saveAnswers(
+      req.params.submissionId,
+      req.user.id,
+      req.body.answers,
+    );
     res.json(result);
   },
 );
@@ -93,7 +100,11 @@ router.post(
   '/submissions/:submissionId/submit',
   validate({ params: idParams('submissionId'), body: z.object({ displayMode: displayMode.optional() }) }),
   async (req, res) => {
-    const submission = await submissionService.submitSubmission(req.params.submissionId, req.user.id, req.body);
+    const submission = await submissionService.submitSubmission(
+      req.params.submissionId,
+      req.user.id,
+      req.body,
+    );
     res.json({ submission });
   },
 );

@@ -32,10 +32,14 @@ router.get('/:courseId', validate({ params: idParams('courseId') }), async (req,
   res.json({ course });
 });
 
-router.patch('/:courseId', validate({ params: idParams('courseId'), body: coursePatch }), async (req, res) => {
-  const course = await courseService.updateCourse(req.user, req.params.courseId, req.body);
-  res.json({ course });
-});
+router.patch(
+  '/:courseId',
+  validate({ params: idParams('courseId'), body: coursePatch }),
+  async (req, res) => {
+    const course = await courseService.updateCourse(req.user, req.params.courseId, req.body);
+    res.json({ course });
+  },
+);
 
 router.delete('/:courseId', validate({ params: idParams('courseId') }), async (req, res) => {
   const result = await courseService.deleteCourse(req.user, req.params.courseId);

@@ -50,16 +50,26 @@ function respondWithTokens(res, { user, tokens }, statusCode = 200) {
 }
 
 // ครูสมัครสมาชิก
-router.post('/teacher/register', registerLimiter, validate({ body: teacherRegisterSchema }), async (req, res) => {
-  const result = await authService.registerTeacher(req.body, userAgentOf(req));
-  respondWithTokens(res, result, 201);
-});
+router.post(
+  '/teacher/register',
+  registerLimiter,
+  validate({ body: teacherRegisterSchema }),
+  async (req, res) => {
+    const result = await authService.registerTeacher(req.body, userAgentOf(req));
+    respondWithTokens(res, result, 201);
+  },
+);
 
 // นักเรียนสมัครสมาชิก (แนบ joinCode มาด้วยเพื่อเข้าห้องเรียนทันที)
-router.post('/student/register', registerLimiter, validate({ body: studentRegisterSchema }), async (req, res) => {
-  const result = await authService.registerStudent(req.body, userAgentOf(req));
-  respondWithTokens(res, result, 201);
-});
+router.post(
+  '/student/register',
+  registerLimiter,
+  validate({ body: studentRegisterSchema }),
+  async (req, res) => {
+    const result = await authService.registerStudent(req.body, userAgentOf(req));
+    respondWithTokens(res, result, 201);
+  },
+);
 
 // เข้าสู่ระบบ — แยกช่องทางตามบทบาท (ส่ง role มาด้วยเสมอ)
 router.post('/login', loginLimiter, validate({ body: loginSchema }), async (req, res) => {

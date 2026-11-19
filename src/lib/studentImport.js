@@ -58,7 +58,9 @@ function isEmptyRow(row) {
 
 function cellText(value) {
   if (value === null || value === undefined) return '';
-  return String(value).replace(/\u00a0/g, ' ').trim();
+  return String(value)
+    .replace(/\u00a0/g, ' ')
+    .trim();
 }
 
 /**
@@ -160,7 +162,13 @@ export function rowsToStudents(rows) {
     seenEmails.set(email, rowNumber);
     if (studentCode) seenCodes.set(studentCode, rowNumber);
 
-    students.push({ rowNumber, studentCode: studentCode || null, fullName, email, password: password || null });
+    students.push({
+      rowNumber,
+      studentCode: studentCode || null,
+      fullName,
+      email,
+      password: password || null,
+    });
   }
 
   return { students, errors };

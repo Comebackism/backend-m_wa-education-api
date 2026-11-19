@@ -96,7 +96,9 @@ function isEmptyRow(row) {
 
 function cellText(value) {
   if (value === null || value === undefined) return '';
-  return String(value).replace(/\u00a0/g, ' ').trim();
+  return String(value)
+    .replace(/\u00a0/g, ' ')
+    .trim();
 }
 
 /** อ่านไฟล์ → ตรวจ → ได้รายการข้อคำถามที่พร้อมสร้าง */
@@ -164,7 +166,9 @@ export function rowsToQuestions(rows) {
     const rawType = cellText(read('type'));
     let type = TYPE_LABELS.get(norm(rawType)) ?? null;
     if (rawType && !type) {
-      problems.push(`ไม่รู้จักประเภท "${rawType}" (ใช้ ปรนัย / อัตนัย / อัตนัยยาว หรือ MULTIPLE_CHOICE / SHORT_ANSWER / LONG_ANSWER)`);
+      problems.push(
+        `ไม่รู้จักประเภท "${rawType}" (ใช้ ปรนัย / อัตนัย / อัตนัยยาว หรือ MULTIPLE_CHOICE / SHORT_ANSWER / LONG_ANSWER)`,
+      );
     }
 
     // --- โจทย์ -------------------------------------------------------------
@@ -202,7 +206,9 @@ export function rowsToQuestions(rows) {
       if (!rawCorrect) {
         problems.push('ข้อปรนัยต้องระบุเฉลย (A, B, C หรือ D)');
       } else if (!choices.some((choice) => choice.label === rawCorrect)) {
-        problems.push(`เฉลย "${cellText(read('correct'))}" ไม่ตรงกับตัวเลือกที่มี (${choices.map((c) => c.label).join(', ') || 'ไม่มี'})`);
+        problems.push(
+          `เฉลย "${cellText(read('correct'))}" ไม่ตรงกับตัวเลือกที่มี (${choices.map((c) => c.label).join(', ') || 'ไม่มี'})`,
+        );
       }
 
       for (const choice of choices) choice.isCorrect = choice.label === rawCorrect;

@@ -65,9 +65,16 @@ router.delete('/:studentId', validate({ params: idParams('studentId') }), async 
 
 router.post(
   '/:studentId/reset-password',
-  validate({ params: idParams('studentId'), body: z.object({ password: z.string().min(8).max(72).optional() }) }),
+  validate({
+    params: idParams('studentId'),
+    body: z.object({ password: z.string().min(8).max(72).optional() }),
+  }),
   async (req, res) => {
-    const result = await classroomService.resetStudentPassword(req.user, req.params.studentId, req.body.password);
+    const result = await classroomService.resetStudentPassword(
+      req.user,
+      req.params.studentId,
+      req.body.password,
+    );
     res.json(result);
   },
 );

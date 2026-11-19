@@ -1,0 +1,7 @@
+node_modules/
+src/generated/
+coverage/
+reports/
+diagrams/
+package-lock.json
+*.md

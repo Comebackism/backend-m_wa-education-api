@@ -246,9 +246,30 @@ async function main() {
   await prisma.answer.createMany({
     data: [
       // ปรนัย → ตรวจอัตโนมัติ
-      { submissionId: submission.id, questionId: q1.id, choiceId: correct(q1), isCorrect: true, autoGraded: true, awardedPoints: 2 },
-      { submissionId: submission.id, questionId: q2.id, choiceId: wrong(q2), isCorrect: false, autoGraded: true, awardedPoints: 0 },
-      { submissionId: submission.id, questionId: q3.id, choiceId: correct(q3), isCorrect: true, autoGraded: true, awardedPoints: 2 },
+      {
+        submissionId: submission.id,
+        questionId: q1.id,
+        choiceId: correct(q1),
+        isCorrect: true,
+        autoGraded: true,
+        awardedPoints: 2,
+      },
+      {
+        submissionId: submission.id,
+        questionId: q2.id,
+        choiceId: wrong(q2),
+        isCorrect: false,
+        autoGraded: true,
+        awardedPoints: 0,
+      },
+      {
+        submissionId: submission.id,
+        questionId: q3.id,
+        choiceId: correct(q3),
+        isCorrect: true,
+        autoGraded: true,
+        awardedPoints: 2,
+      },
       // อัตนัย → ครูตรวจเอง
       {
         submissionId: submission.id,
@@ -297,7 +318,9 @@ async function main() {
   console.log(`   นักเรียน : ${STUDENTS[0].email} / ${STUDENTS[0].password} (มีผลสอบที่ปล่อยแล้ว)`);
   console.log(`   นักเรียน : ${STUDENTS[1].email} / ${STUDENTS[1].password}`);
   console.log(`   นักเรียน : ${STUDENTS[2].email} / ${STUDENTS[2].password}`);
-  console.log(`   ห้องเรียน : ${classrooms.map((room) => room.name).join(', ')} (${classrooms.length} ห้อง, ไม่ผูกวิชา)`);
+  console.log(
+    `   ห้องเรียน : ${classrooms.map((room) => room.name).join(', ')} (${classrooms.length} ห้อง, ไม่ผูกวิชา)`,
+  );
   console.log(`   รหัสเข้าห้อง ม.4/1: ${classroom.joinCode}`);
 }
 

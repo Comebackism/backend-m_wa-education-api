@@ -69,7 +69,12 @@ export async function createClassroom(teacherId, { name, courseId }) {
   }
 
   return prisma.classroom.create({
-    data: { name, courseId: resolvedCourseId, teacherId: actorId(teacherId), joinCode: await generateJoinCode() },
+    data: {
+      name,
+      courseId: resolvedCourseId,
+      teacherId: actorId(teacherId),
+      joinCode: await generateJoinCode(),
+    },
     include: { course: true },
   });
 }
@@ -221,7 +226,12 @@ function buildStudentImportMessage(created, enrolled, skipped) {
  * - คนที่ยังไม่มีบัญชี → สร้างบัญชี STUDENT ให้ พร้อมรหัสผ่าน (ครูระบุ หรือระบบสุ่ม 12 ตัว)
  * - dryRun = true → ตรวจและสรุปผลโดยไม่บันทึก
  */
-export async function importStudentsFromFile(teacherId, classroomId, { buffer, filename }, { dryRun = false } = {}) {
+export async function importStudentsFromFile(
+  teacherId,
+  classroomId,
+  { buffer, filename },
+  { dryRun = false } = {},
+) {
   await getOwnedClassroom(teacherId, classroomId);
 
   const { students, errors } = await readStudentRosterFile(buffer, filename);
@@ -245,7 +255,7 @@ export async function importStudentsFromFile(teacherId, classroomId, { buffer, f
 
   for (const row of students) {
     const matchEmail = emailMap.get(row.email) ?? null;
-    const matchCode = row.studentCode ? codeMap.get(row.studentCode) ?? null : null;
+    const matchCode = row.studentCode ? (codeMap.get(row.studentCode) ?? null) : null;
 
     if (matchEmail && matchEmail.role !== 'STUDENT') {
       dbErrors.push({ row: row.rowNumber, message: 'อีเมลนี้ถูกใช้โดยบัญชีที่ไม่ใช่บทบาทนักเรียน' });
@@ -311,7 +321,7 @@ export async function importStudentsFromFile(teacherId, classroomId, { buffer, f
       wouldCreate: created,
       wouldEnroll: enrolled,
       wouldSkip: skipped,
-      students: items.map(({ temporaryPassword, ...rest }) => rest),
+      students: items.map(({ temporaryPassword: _temporaryPassword, ...rest }) => rest),
     };
   }
 
@@ -413,7 +423,7 @@ export async function listStudentClassrooms(studentId) {
   }));
 }
 
-/** นักเรียนกรอกรหัสห้องเรียนเพื่อเข้าห้องเอง */export async function joinClassroom(studentId, joinCode) {
+/** นักเรียนกรอกรหัสห้องเรียนเพื่อเข้าห้องเอง */ export async function joinClassroom(studentId, joinCode) {
   const classroom = await prisma.classroom.findUnique({
     where: { joinCode: joinCode.toUpperCase() },
     include: { course: { select: { id: true, code: true, title: true } } },
@@ -525,7 +535,9 @@ export async function removeStudentFromTeacherClassrooms(teacherId, studentId) {
   await assertStudentOfTeacher(teacherId, studentId);
 
   const removed = await prisma.enrollment.deleteMany({
-    where: isAdminActor(teacherId) ? { studentId } : { studentId, classroom: { teacherId: actorId(teacherId) } },
+    where: isAdminActor(teacherId)
+      ? { studentId }
+      : { studentId, classroom: { teacherId: actorId(teacherId) } },
   });
 
   const remainingEnrollments = await prisma.enrollment.count({ where: { studentId } });
@@ -540,6 +552,9 @@ export async function removeStudentFromTeacherClassrooms(teacherId, studentId) {
 export async function resetStudentPassword(teacherId, studentId, newPassword) {
   await assertStudentOfTeacher(teacherId, studentId);
   const password = newPassword ?? randomPassword();
-  await prisma.user.update({ where: { id: studentId }, data: { passwordHash: await hashPassword(password) } });
+  await prisma.user.update({
+    where: { id: studentId },
+    data: { passwordHash: await hashPassword(password) },
+  });
   return { password };
 }

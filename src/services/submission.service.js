@@ -127,7 +127,14 @@ export async function saveAnswers(submissionId, studentId, answers) {
     });
   });
 
-  return { savedCount: saved.length, answers: saved.map((answer) => ({ questionId: answer.questionId, choiceId: answer.choiceId, textAnswer: answer.textAnswer })) };
+  return {
+    savedCount: saved.length,
+    answers: saved.map((answer) => ({
+      questionId: answer.questionId,
+      choiceId: answer.choiceId,
+      textAnswer: answer.textAnswer,
+    })),
+  };
 }
 
 /**

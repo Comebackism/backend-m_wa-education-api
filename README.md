@@ -30,6 +30,7 @@ REST API + Realtime สำหรับระบบจัดการเรีย
 - [หมายเหตุเฉพาะ Prisma 7](#-หมายเหตุเฉพาะ-prisma-7)
 - [คู่มือนักพัฒนา (Development)](#-คู่มือนักพัฒนา-development)
 - [การทดสอบ](#-การทดสอบ)
+- [CI ด้วย Jenkins](#-ci-ด้วย-jenkins)
 - [Troubleshooting](#-troubleshooting)
 - [ความปลอดภัย (Security Notes)](#-ความปลอดภัย-security-notes)
 - [ข้อจำกัดที่รู้อยู่ / แนวทางต่อยอด](#-ข้อจำกัดที่รู้อยู่--แนวทางต่อยอด)
@@ -437,6 +438,12 @@ curl http://localhost:4000/health
 | `npm run seed` | `prisma db seed` — ใส่ข้อมูลตัวอย่าง |
 | `npm run reset` | `prisma migrate reset --force` — ลบ DB, migrate ใหม่, seed ใหม่ (**ข้อมูลหายทั้งหมด**) |
 | `npm run test:realtime` | Smoke test ชั้น realtime (ต้องมีเซิร์ฟเวอร์รันค้างไว้ + seed แล้ว) |
+| `npm run test:db` | เตรียมฐานข้อมูลเทสต์ (สร้างถ้ายังไม่มี + `prisma migrate deploy`) — ใช้ใน CI |
+| `npm run test:unit` | Unit test (ไม่แตะฐานข้อมูล) |
+| `npm run test:integration` | Integration test (ใช้ฐานข้อมูลเทสต์จริง) |
+| `npm test` | รันทั้ง unit + integration |
+| `npm run test:coverage` | รันทั้งชุดพร้อมรายงาน coverage |
+| `npm run test:ci` | รันทั้งชุดสำหรับ CI → JUnit XML + LCOV (ดูหัวข้อ Jenkins) |
 
 ---
 
@@ -785,6 +792,15 @@ prisma/
 prisma.config.js         # Prisma 7 CLI config (datasource + seed)
 scripts/
   realtime-smoke.mjs     # ทดสอบ Socket.IO end-to-end (npm run test:realtime)
+  test-db.mjs            # เตรียมฐานข้อมูลเทสต์ (สร้าง + migrate) สำหรับ CI
+  ci-check.mjs           # ตรวจเครื่องมือ (Node >= 24.18) ก่อนรัน CI
+  ci-test.mjs            # รันเทสต์ + ออกรายงาน JUnit/LCOV สำหรับ CI (npm run test:ci)
+tests/
+  setup-env.js           # ตั้งค่า env ก่อน import แอป (NODE_ENV=test, ชี้ DB _test)
+  helpers/               # ตัวช่วยเทสต์ (db, fixtures, http, csv, api-error)
+  unit/                  # unit test (ไม่แตะ DB)
+  integration/           # integration test (PostgreSQL จริง + HTTP จริง)
+Jenkinsfile              # ไปป์ไลน์ CI (Windows agent)
 docs/REALTIME.md         # คู่มือชั้น realtime สำหรับ frontend
 diagrams/                # ER Diagram + Flowcharts (Mermaid)
 docker-compose.yml       # PostgreSQL สำหรับ dev
@@ -843,7 +859,34 @@ npm run studio
 
 ## 🧪 การทดสอบ
 
-ในโปรเจกต์นี้ยังไม่มี unit/integration test suite แต่มี **realtime smoke test** แบบ end-to-end ให้ใช้:
+โปรเจกต์มีชุดเทสต์ครบทั้ง **unit test** และ **integration test** เขียนด้วย [`node:test`](https://nodejs.org/api/test.html)
+ที่มากับ Node 24 — **ไม่ต้องเพิ่ม dependency** (ไม่มี vitest/jest/supertest)
+
+| ชุด | ที่อยู่ | ลักษณะ |
+| :--- | :--- | :--- |
+| Unit | `tests/unit/**` | ฟังก์ชันล้วน/middleware — ไม่แตะฐานข้อมูล (เร็ว) |
+| Integration | `tests/integration/**` | ใช้ **PostgreSQL จริง** (ฐานข้อมูลเทสต์แยก) + ยิง HTTP จริงผ่าน Express |
+
+```bash
+# 1) เตรียมฐานข้อมูลเทสต์ (ครั้งแรก/หลังมี migration ใหม่)
+npm run test:db
+
+# 2) รันเทสต์
+npm test                 # ทั้งหมด
+npm run test:unit        # เฉพาะ unit
+npm run test:integration # เฉพาะ integration
+npm run test:coverage    # พร้อมรายงาน coverage
+```
+
+**หลักการของชุดเทสต์**
+
+- ใช้ฐานข้อมูลแยกชื่อลงท้าย **`_test`** (ค่าเริ่มต้น `wa_education_test`) เพื่อไม่แตะข้อมูลพัฒนา/production
+  - ตั้งที่อยู่เองได้ด้วย `TEST_DATABASE_URL` และสคริปต์จะ **ปฏิเสธ** ชื่อ DB ที่ไม่ลงท้าย `_test`
+- ตั้งค่า environment ก่อน import แอปผ่าน `tests/setup-env.js` (`NODE_ENV=test`, `BCRYPT_ROUNDS=4`, ปิด rate limit)
+- ล้างข้อมูลด้วย `TRUNCATE` ก่อนทุกเคส → จึงรันแบบ **ทีละไฟล์** (`--test-concurrency=1`) เพื่อไม่ให้ชนกัน
+- เทสต์ยิง HTTP จริงผ่าน `fetch` ของ Node (ไม่ใช้ supertest) และตรวจสัญญา route/สถานะ/รูปแบบ error
+
+> `npm run test:realtime` เป็น **smoke test** ชั้น Socket.IO แยกต่างหาก ต้องมีเซิร์ฟเวอร์รันค้างไว้:
 
 ```bash
 # terminal 1
@@ -867,6 +910,76 @@ npm run test:realtime
 
 ---
 
+### Lint / Format
+
+```bash
+npm run lint          # ตรวจด้วย ESLint (flat config)
+npm run lint:fix      # แก้อัตโนมัติเท่าที่ทำได้
+npm run format        # จัดรูปแบบด้วย Prettier
+npm run format:check  # ตรวจว่ารูปแบบตรงตาม Prettier (ใช้ใน CI)
+```
+
+> ใช้ ESLint จับ bug (ตัวแปรไม่ได้ประกาศ/ไม่ได้ใช้) และ Prettier จัดรูปแบบ —
+> `format:check` จะทำให้ CI แดงถ้ามีไฟล์ที่ยังไม่จัดรูปแบบ
+
+---
+
+## 🔁 CI ด้วย Jenkins
+
+ไปป์ไลน์อยู่ใน [`Jenkinsfile`](Jenkinsfile) ที่รากโปรเจกต์ รันบน **agent Windows** (ใช้ `bat`)
+
+**ลำดับสเต็ป**
+
+1. ตรวจเครื่องมือ — Node ต้อง ≥ เวอร์ชันใน `.nvmrc` (`scripts/ci-check.mjs`)
+2. `npm ci` + `npm run generate`
+3. `prisma validate` — ตรวจ schema ก่อนไปต่อ
+4. `npm run lint` (ESLint) + `npm run format:check` (Prettier)
+5. `npm run test:unit` — unit test เร็ว ไม่แตะฐานข้อมูล (ด่านแรก)
+6. `npm run test:db` — สร้าง/ตรวจฐานข้อมูลเทสต์ + `prisma migrate deploy`
+7. `prisma migrate diff --exit-code` — **กันลืมทำ migration** (schema ต่างจาก DB = build แดง)
+8. `npm run test:ci` — integration test + JUnit XML + LCOV + **branch gate 85%**
+9. `npm audit --omit=dev` — รายงานช่องโหว่ (ยังไม่บล็อก build)
+
+หลังจบ build จะเก็บผล JUnit + Coverage พร้อม **quality gate**:
+
+- `LINE < 95%` → build **แดง** (Coverage plugin ของ Jenkins)
+- `BRANCH < 85%` → build **แดง** (บังคับใน `scripts/ci-test.mjs` เพราะ Coverage plugin
+  อ่านค่า branch จาก LCOV ของ Node ไม่ได้) — ปรับเพดานได้ด้วย env `COVERAGE_MIN_BRANCH`
+
+**สิ่งที่ต้องเตรียมบนเครื่อง agent**
+
+| ต้องมี | รายละเอียด |
+| :--- | :--- |
+| Node.js | **≥ เวอร์ชันใน `.nvmrc`** (ปัจจุบัน `24.18.0`) — สเต็ปแรกจะพังเร็วถ้าเวอร์ชันไม่ถึง |
+| npm | มาพร้อม Node |
+| PostgreSQL | เข้าถึงได้จาก agent (ค่าเริ่มต้น `localhost:5432`) |
+| git | สำหรับ checkout |
+
+**ตั้งค่าที่ตัว job**
+
+- ใน Jenkins สร้าง job ชนิด **Pipeline** แล้วชี้ *Pipeline script from SCM* ไปที่ repo นี้ (สคริปต์ = `Jenkinsfile`)
+- กำหนด **label ของ agent** ใน `Jenkinsfile` (`agent { label 'windows' }`) ให้ตรงกับ label ของเครื่อง Windows
+  ที่ต่อกับ Jenkins — ถ้าไม่แน่ใจให้ใช้ `agent any` เมื่อมีแต่ agent Windows
+- สร้าง **Credential ชนิด Secret text ชื่อ `wa-education-test-db-url`** เก็บ connection string ของฐานข้อมูล
+  ที่ชื่อลงท้าย `_test` (เช่น `postgresql://postgres:postgres@localhost:5432/wa_education_test?schema=public`)
+  — `Jenkinsfile` ใช้ค่านี้ทั้ง `TEST_DATABASE_URL` และ `DATABASE_URL` (ให้ Prisma CLI ใช้ตอน
+  `generate` / `migrate`) และจะถูก **mask ใน log** อัตโนมัติ
+- ไม่ต้องมีไฟล์ `.env` บน agent
+- npm cache ตั้งไว้ที่ `D:\jenkins-cache\npm` (นอก workspace จึงไม่ถูกลบด้วย `deleteDir()` ทุกบิลด์) — แก้ได้ใน `environment`
+- **trigger เป็นแบบกดเอง** (ไม่มี webhook/poll) — ถ้าต้องการอัตโนมัติให้เพิ่ม `pollSCM` หรือ webhook ภายหลัง
+
+**ผลลัพธ์หลัง build**
+
+- แท็บ **Tests** — ผลทดสอบรายเคสจาก `reports/junit.xml`
+- แท็บ **Coverage** — coverage จาก `coverage/lcov.info` (ต้องติดตั้ง **Coverage plugin**;
+  ถ้ายังไม่มีไปป์ไลน์จะข้ามการเผยแพร่ coverage อย่างเงียบ ๆ ไม่ทำให้ build แดง)
+- **Artifacts** — ดาวน์โหลดทั้งโฟลเดอร์ `reports/` และ `coverage/` ได้
+
+> เทสต์ใช้ฐานข้อมูลเทสต์ร่วมกันและ `TRUNCATE` ทุกเคส — `Jenkinsfile` จึงปิดการรันซ้อนด้วย
+> `disableConcurrentBuilds()` ไม่ให้สองบิลด์แย่งกันล้างข้อมูล
+
+---
+
 ## 🩺 Troubleshooting
 
 | อาการ | สาเหตุที่เป็นไปได้ | วิธีแก้ |
@@ -874,6 +987,7 @@ npm run test:realtime
 | แอปไม่สตาร์ต พิมพ์ `[env] invalid environment configuration` | ค่าใน `.env` ขาด/ผิด (เช่น secret สั้นกว่า 16 ตัวอักษร, `DATABASE_URL` ว่าง) | ตรวจ `.env` เทียบกับตารางตัวแปรด้านบน |
 | `Can't reach database server` / Prisma เชื่อมต่อไม่ได้ | ยังไม่เปิด PostgreSQL หรือพอร์ตไม่ตรง | `docker compose up -d` แล้วเช็คว่า `DATABASE_URL` ใช้พอร์ต 5433 (Docker) หรือ 5432 (ในเครื่อง) |
 | ต่อ DB ไม่ได้ทั้งที่ Docker ขึ้นแล้ว | healthcheck ยังไม่ผ่าน | รอสักครู่ (`pg_isready`) หรือดู log `docker compose logs db` |
+| log Jenkins มีข้อความไทยเป็นตัวขยะ (`����ͧ`) | Jenkins JVM ถอดรหัส output ด้วย codepage ของ Windows ไม่ใช่ UTF-8 | เพิ่ม `-Dfile.encoding=UTF-8` ใน arguments ของ Jenkins (`jenkins.xml` หรือ `JAVA_TOOL_OPTIONS`) แล้วรีสตาร์ต — `chcp 65001` ใน `bat` ช่วยได้แค่ฝั่ง process ลูก |
 | `@prisma/client did not initialize yet` | ยังไม่ generate client | `npm run generate` |
 | ล็อกอินแล้วขึ้น `403` "บัญชีนี้เป็นบทบาท …" | ส่ง `role` ไม่ตรงกับบัญชีจริง | ส่ง `role` ให้ตรง (ครู/นักเรียน) |
 | `429` ตอนล็อกอิน | เกิน rate limit (ค่าเริ่มต้น 10 ครั้ง/15 นาที ต่อ IP) | รอตาม `Retry-After` ใน response แล้วลองใหม่ · ตอนพัฒนาให้ตั้ง `LOGIN_RATE_LIMIT_MAX` สูง ๆ หรือ `RATE_LIMIT_DISABLED=true` ใน `.env` แล้วรีสตาร์ต (ตัวนับเป็น in-memory → รีสตาร์ตเซิร์ฟเวอร์ก็ล้าง) |
@@ -882,6 +996,10 @@ npm run test:realtime
 | Socket.IO `connect_error: UNAUTHORIZED` | ไม่ได้ส่ง access token หรือ token หมดอายุ | ส่ง `auth: { token }` และ refresh token ให้ใหม่ก่อน |
 | Frontend โดน CORS block | origin ไม่อยู่ใน allow-list | เพิ่ม origin ใน `CORS_ORIGIN` (คั่นหลายค่าด้วย `,`) แล้วรีสตาร์ต |
 | `npm run seed` ไม่ทำอะไร | seed ข้ามเมื่อมีข้อมูล demo อยู่แล้ว | ใช้ `npm run reset` ถ้าต้องการเริ่มใหม่ |
+| เทสต์พัง `ต้องลงท้าย "_test"` | `TEST_DATABASE_URL` ชี้ฐานข้อมูลที่ไม่ใช่ `_test` | ตั้งชื่อ DB ลงท้าย `_test` (เช่น `wa_education_test`) — เป็นการกันพลาดลบข้อมูลจริง |
+| เทสต์ค้าง/ข้อมูลเพี้ยนเป็นระยะ | รันเทสต์ซ้อนกันบน DB เดียว (TRUNCATE ชนกัน) | รันทีละชุด (`--test-concurrency=1` ให้มาแล้ว) และปิด concurrent build ใน Jenkins |
+| Jenkins ค้างที่ "waiting for next available executor" | `agent { label ... }` ไม่ตรงกับ label ของเครื่อง Windows | แก้ label ให้ตรง หรือเปลี่ยนเป็น `agent any` |
+| Jenkins พังตั้งแต่สเต็ปแรก | Node บน agent เก่ากว่า 24.18 | อัปเดต Node (สคริปต์ `scripts/ci-check.mjs` จะบอกเวอร์ชันที่ต้องใช้) |
 
 ---
 
@@ -911,7 +1029,8 @@ npm run test:realtime
 - การปล่อยผลทั้งชุดยังเป็น loop ต่อใบ (ถ้าข้อมูลเยอะมากอาจพิจารณา batch)
 - Realtime แบบ multi-instance ต้องเพิ่ม adapter กลาง เช่น `@socket.io/redis-adapter`
   (ห้อง `user:<id>` จะไม่ข้าม process กันเอง)
-- ยังไม่มี automated test suite (unit/integration) นอกเหนือจาก realtime smoke test
+- **มีชุดเทสต์ unit + integration แล้ว** (ดูหัวข้อ [การทดสอบ](#-การทดสอบ)) — ยังไม่มี E2E ระดับเบราว์เซอร์
+  (การทดสอบ UI ทำแยกฝั่ง frontend) และยังไม่มี quality gate บังคับ coverage ขั้นต่ำใน CI
 - **นำเข้าไฟล์** รองรับเฉพาะ `.csv` และ `.xlsx` (ยังไม่รองรับ `.xls` แบบเก่า) และสูงสุด 5 MB / 500 แถวต่อครั้ง
 - **นำเข้ารายชื่อนักเรียน** ใช้ `POST /api/classrooms/:classroomId/students/import` (multipart ฟิลด์ `file`) — ตรวจทุกแถวก่อนแบบ all-or-nothing; คนที่มีบัญชีอยู่แล้วจะถูกผูกเข้าห้องให้
 - ยังไม่มี **คลังข้อคำถาม (Question Bank)** แยกจากชุดข้อสอบ (สคีมาผูก `Question` เข้ากับ `Exam` เสมอ)

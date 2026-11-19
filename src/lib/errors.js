@@ -49,6 +49,6 @@ function defaultCode(statusCode) {
 /** ตัดฟิลด์ลับออกจาก user object ก่อนส่งกลับ */
 export function publicUser(user) {
   if (!user) return null;
-  const { passwordHash, ...rest } = user;
+  const { passwordHash: _passwordHash, ...rest } = user;
   return rest;
 }

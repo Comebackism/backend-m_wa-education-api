@@ -72,7 +72,12 @@ const assignmentBody = z.object({
 
 router.get(
   '/',
-  validate({ query: z.object({ status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED']).optional(), courseId: uuid.optional() }) }),
+  validate({
+    query: z.object({
+      status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED']).optional(),
+      courseId: uuid.optional(),
+    }),
+  }),
   async (req, res) => {
     const exams = await examService.listExams(req.user, req.validatedQuery);
     res.json({ exams });
