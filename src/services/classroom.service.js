@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError, publicUser } from '../lib/errors.js';
 import { hashPassword } from '../lib/password.js';
-import { getOwnedClassroom, getOwnedCourse } from '../lib/access.js';
+import { getOwnedClassroom, getOwnedCourse, actorId, isAdminActor } from '../lib/access.js';
 import { toCsv } from '../lib/csv.js';
 
 const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -44,13 +44,15 @@ function resolveTemporaryPassword(payload) {
   return payload.password ?? randomPassword();
 }
 
-/** นักเรียนต้องอยู่ในห้องเรียนของครูคนนี้เท่านั้น */
+/** นักเรียนต้องอยู่ในห้องเรียนของครูคนนี้เท่านั้น (ADMIN เข้าถึงได้ทุกคน) */
 export async function assertStudentOfTeacher(teacherId, studentId) {
   const student = await prisma.user.findFirst({
     where: {
       id: studentId,
       role: 'STUDENT',
-      enrollments: { some: { classroom: { teacherId } } },
+      ...(isAdminActor(teacherId)
+        ? {}
+        : { enrollments: { some: { classroom: { teacherId: actorId(teacherId) } } } }),
     },
   });
   if (!student) throw ApiError.notFound('ไม่พบนักเรียนคนนี้ในห้องเรียนของคุณ');
@@ -58,16 +60,25 @@ export async function assertStudentOfTeacher(teacherId, studentId) {
 }
 
 export async function createClassroom(teacherId, { name, courseId }) {
-  const course = await getOwnedCourse(teacherId, courseId);
+  // ห้องเรียนไม่จำเป็นต้องผูกกับรายวิชา — ถ้าไม่ส่ง courseId มา ให้เป็นห้องเรียนลอย
+  let resolvedCourseId = null;
+  if (courseId) {
+    const course = await getOwnedCourse(teacherId, courseId);
+    resolvedCourseId = course.id;
+  }
+
   return prisma.classroom.create({
-    data: { name, courseId: course.id, teacherId, joinCode: await generateJoinCode() },
+    data: { name, courseId: resolvedCourseId, teacherId: actorId(teacherId), joinCode: await generateJoinCode() },
     include: { course: true },
   });
 }
 
 export async function listClassrooms(teacherId, { courseId } = {}) {
   return prisma.classroom.findMany({
-    where: { teacherId, ...(courseId ? { courseId } : {}) },
+    where: {
+      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
+      ...(courseId ? { courseId } : {}),
+    },
     include: {
       course: true,
       _count: { select: { enrollments: true, examAssignments: true } },
@@ -91,7 +102,8 @@ export async function getClassroomDetail(teacherId, classroomId) {
 
 export async function listStudents(classroomId) {
   const enrollments = await prisma.enrollment.findMany({
-    where: { classroomId },
+    // เฉพาะบัญชีนักเรียนจริง (กันบัญชี ADMIN ที่ถูกผูกเข้าห้องเพื่อดูฝั่งนักเรียนโผล่ในรายชื่อ)
+    where: { classroomId, student: { role: 'STUDENT' } },
     include: { student: true },
     orderBy: { student: { fullName: 'asc' } },
   });
@@ -264,18 +276,20 @@ export async function listStudentClassrooms(studentId) {
 export async function listTeacherStudents(teacherId, { q } = {}) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
-      classroom: { teacherId },
-      ...(q
-        ? {
-            student: {
+      ...(isAdminActor(teacherId) ? {} : { classroom: { teacherId: actorId(teacherId) } }),
+      student: {
+        // เฉพาะนักเรียนจริง — ไม่นับบัญชี ADMIN ที่ผูกเข้าห้องเพื่อทดสอบฝั่งนักเรียน
+        role: 'STUDENT',
+        ...(q
+          ? {
               OR: [
                 { fullName: { contains: q, mode: 'insensitive' } },
                 { email: { contains: q, mode: 'insensitive' } },
                 { studentCode: { contains: q, mode: 'insensitive' } },
               ],
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     },
     include: {
       student: true,
@@ -354,7 +368,7 @@ export async function removeStudentFromTeacherClassrooms(teacherId, studentId) {
   await assertStudentOfTeacher(teacherId, studentId);
 
   const removed = await prisma.enrollment.deleteMany({
-    where: { studentId, classroom: { teacherId } },
+    where: isAdminActor(teacherId) ? { studentId } : { studentId, classroom: { teacherId: actorId(teacherId) } },
   });
 
   const remainingEnrollments = await prisma.enrollment.count({ where: { studentId } });

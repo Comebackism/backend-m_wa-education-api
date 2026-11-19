@@ -163,7 +163,7 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 
 | Enum | ค่า | ความหมาย |
 | :--- | :--- | :--- |
-| `Role` | `TEACHER`, `STUDENT` | บทบาทผู้ใช้ |
+| `Role` | `TEACHER`, `STUDENT`, `ADMIN` | บทบาทผู้ใช้ (`ADMIN` เข้าได้ทั้งฝั่งครูและนักเรียน) |
 | `ExamStatus` | `DRAFT` → `PUBLISHED` → `CLOSED` | สถานะข้อสอบ (นักเรียนเห็นเฉพาะ `PUBLISHED`) |
 | `QuestionType` | `MULTIPLE_CHOICE`, `SHORT_ANSWER`, `LONG_ANSWER` | ประเภทคำถาม |
 | `DisplayMode` | `SINGLE_PAGE`, `PAGINATED` | โหมดแสดงผลข้อสอบ (เก็บต่อการส่ง 1 ครั้ง) |
@@ -176,7 +176,7 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 | `User` | `users` | `email` (unique), `passwordHash`, `fullName`, `role`, `studentCode` (unique, nullable), `isActive` | index ที่ `role` |
 | `RefreshToken` | `refresh_tokens` | `tokenHash` (unique), `expiresAt`, `revokedAt`, `userAgent` | cascade เมื่อ user ถูกลบ |
 | `Course` | `courses` | `code`, `title`, `description`, `teacherId` | unique `[teacherId, code]` |
-| `Classroom` | `classrooms` | `name`, `joinCode` (unique), `courseId`, `teacherId` | joinCode สุ่มอัตโนมัติ 6 ตัว |
+| `Classroom` | `classrooms` | `name`, `joinCode` (unique), `courseId` (nullable), `teacherId` | joinCode สุ่มอัตโนมัติ 6 ตัว |
 | `Enrollment` | `enrollments` | `classroomId`, `studentId`, `enrolledAt` | unique `[classroomId, studentId]` |
 | `Exam` | `exams` | `title`, `status`, `timeLimitMinutes?`, `allowedIpRanges[]`, `defaultDisplayMode`, `questionsPerPage`, `totalsPoints` | `courseId` on delete → `SetNull` |
 | `ExamAssignment` | `exam_assignments` | `availableFrom?`, `availableTo?` | unique `[examId, classroomId]` |
@@ -208,6 +208,7 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 
 - `POST /api/auth/login` ต้องส่ง `role` (`TEACHER` / `STUDENT`) มาด้วยเสมอ
   — ล็อกอินผิดช่องทางจะได้ `403` พร้อมบอกว่าบัญชีนี้เป็นบทบาทอะไร
+  — บัญชี `ADMIN` เข้าสู่ระบบได้ทั้งช่องทางนักเรียนและครู
 - ใช้ **access token (อายุสั้น, ค่าเริ่มต้น 15 นาที)** แนบ `Authorization: Bearer <token>`
 - **refresh token** (ค่าเริ่มต้น 7 วัน) ถูก **rotate ทุกครั้ง** ที่ต่ออายุ — ตัวเก่าถูกเพิกถอนทันที
   และเก็บใน DB แบบ **hashed sha256** (`tokenHash` unique) ถ้า DB รั่วก็ยังปลอม token ไม่ได้
@@ -443,11 +444,13 @@ curl http://localhost:4000/health
 | บทบาท | อีเมล | รหัสผ่าน | หมายเหตุ |
 | :--- | :--- | :--- | :--- |
 | ครู | `teacher@demo.local` | `Teacher123!` | "ครูสมชาย ใจดี" |
+| ผู้ดูแล | `foqw007100@gmail.com` | `wa1234` | เข้าได้ทั้งฝั่งนักเรียนและครู (`ADMIN`) |
 | นักเรียน | `student1@demo.local` | `Student123!` | `S001` — **มีผลสอบที่ปล่อยแล้ว** (7/10 → เกรด B) |
 | นักเรียน | `student2@demo.local` | `Student123!` | `S002` |
 | นักเรียน | `student3@demo.local` | `Student123!` | `S003` |
 
-- รหัสเข้าห้องเรียน (joinCode): **`MATH41`** (ห้อง "ม.4/1" ในวิชา `MATH-M4` คณิตศาสตร์ ม.4)
+- ห้องเรียนเริ่มต้น **18 ห้อง** `ม.1/1`–`ม.6/3` (ระดับละ 3 ห้อง) **ไม่ผูกกับรายวิชา**
+- รหัสเข้าห้องเรียน (joinCode): **`MATH41`** สำหรับห้อง "ม.4/1" (ห้องอื่นสุ่มให้อัตโนมัติ)
 - ข้อมูลตัวอย่างมาพร้อมข้อสอบ **"สอบกลางภาค คณิตศาสตร์ ม.4"** 5 ข้อ (ปรนัย 3 + อัตนัย 2, คะแนนเต็ม 10)
   จำกัดเวลา 60 นาที โหมด `PAGINATED` 3 ข้อ/หน้า พร้อมเกณฑ์ตัดเกรด A–F และมอบหมายให้ห้อง MATH41
   (มี `availableFrom` = เมื่อวาน, `availableTo` = อีก 7 วัน)

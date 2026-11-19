@@ -48,7 +48,7 @@ export const openApiDocument = {
     description: [
       'REST API ของระบบสอบออนไลน์ (ครู + นักเรียน)',
       '',
-      '**การยืนยันตัวตน** — เรียก `POST /api/auth/login` พร้อม `role` (`TEACHER` / `STUDENT`)',
+      '**การยืนยันตัวตน** — เรียก `POST /api/auth/login` พร้อม `role` (`TEACHER` / `STUDENT`) — บัญชี `ADMIN` เข้าสู่ระบบได้ทั้งสองช่องทาง',
       'แล้วแนบ `Authorization: Bearer <accessToken>` กับทุก endpoint ที่ไม่ใช่ auth',
       '',
       '**Anti-leak** — นักเรียนจะเห็นคะแนน/เฉลย/หมายเหตุของครู เฉพาะเมื่อครูปล่อยผล (`status = RELEASED`) เท่านั้น',
@@ -266,7 +266,7 @@ export const openApiDocument = {
       post: {
         tags: ['Classrooms'],
         summary: 'สร้างห้องเรียนใหม่ (teacher)',
-        description: 'ระบบสร้าง `joinCode` ให้อัตโนมัติ',
+        description: 'ระบบสร้าง `joinCode` ให้อัตโนมัติ — `courseId` ไม่บังคับ (ห้องเรียนไม่ผูกวิชาก็ได้)',
         requestBody: body(ref('ClassroomInput')),
         responses: {
           ...created('สร้างสำเร็จ', { type: 'object', required: ['classroom'], properties: { classroom: ref('Classroom') } }),
@@ -989,7 +989,7 @@ export const openApiDocument = {
     },
     schemas: {
       // --- enums & primitives --------------------------------------------
-      Role: { type: 'string', enum: ['TEACHER', 'STUDENT'] },
+      Role: { type: 'string', enum: ['TEACHER', 'STUDENT', 'ADMIN'] },
       ExamStatus: { type: 'string', enum: ['DRAFT', 'PUBLISHED', 'CLOSED'] },
       QuestionType: { type: 'string', enum: ['MULTIPLE_CHOICE', 'SHORT_ANSWER', 'LONG_ANSWER'] },
       DisplayMode: { type: 'string', enum: ['SINGLE_PAGE', 'PAGINATED'] },
@@ -1131,8 +1131,16 @@ export const openApiDocument = {
       },
       ClassroomInput: {
         type: 'object',
-        required: ['name', 'courseId'],
-        properties: { name: { type: 'string', maxLength: 200, example: 'ม.4/1 ห้อง 2' }, courseId: { type: 'string', format: 'uuid' } },
+        required: ['name'],
+        properties: {
+          name: { type: 'string', maxLength: 200, example: 'ม.4/1' },
+          courseId: {
+            type: 'string',
+            format: 'uuid',
+            nullable: true,
+            description: 'ไม่บังคับ — ห้องเรียนไม่จำเป็นต้องผูกกับรายวิชา',
+          },
+        },
       },
       StudentInClassroom: {
         allOf: [ref('User'), { type: 'object', properties: { enrolledAt: { type: 'string', format: 'date-time' } } }],

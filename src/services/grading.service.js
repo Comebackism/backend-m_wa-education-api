@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
-import { getOwnedExam, getOwnedSubmission } from '../lib/access.js';
+import { getOwnedExam, getOwnedSubmission, actorId, isAdminActor } from '../lib/access.js';
 import { recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeTeacherSubmission, toNumber } from '../lib/serialize.js';
 import { toCsv } from '../lib/csv.js';
@@ -84,7 +84,9 @@ export async function gradeAnswer(teacherId, answerId, payload) {
   });
 
   if (!answer) throw ApiError.notFound('ไม่พบคำตอบข้อนี้');
-  if (answer.submission.exam.teacherId !== teacherId) throw ApiError.forbidden('คำตอบนี้ไม่อยู่ในข้อสอบของคุณ');
+  if (!isAdminActor(teacherId) && answer.submission.exam.teacherId !== actorId(teacherId)) {
+    throw ApiError.forbidden('คำตอบนี้ไม่อยู่ในข้อสอบของคุณ');
+  }
   if (answer.question.type === 'MULTIPLE_CHOICE') {
     throw ApiError.badRequest('ข้อปรนัยถูกตรวจอัตโนมัติแล้ว ไม่ต้องตรวจเอง');
   }
@@ -107,7 +109,7 @@ export async function gradeAnswer(teacherId, answerId, payload) {
       isCorrect: payload.isCorrect,
       awardedPoints: round2(awardedPoints),
       graderComment: payload.graderComment ?? null,
-      gradedById: teacherId,
+      gradedById: actorId(teacherId),
       gradedAt: new Date(),
     },
   });
@@ -116,7 +118,7 @@ export async function gradeAnswer(teacherId, answerId, payload) {
   await recalculateSubmission(answer.submissionId);
 
   // แจ้งครูด้วยกันเอง (แท็บ/อุปกรณ์อื่น) ให้รีเฟรชความคืบหน้าการตรวจ
-  emitToUser(teacherId, RealtimeEvent.SUBMISSION_GRADED, {
+  emitToUser(actorId(teacherId), RealtimeEvent.SUBMISSION_GRADED, {
     examId: answer.submission.examId,
     submissionId: answer.submissionId,
     answerId,

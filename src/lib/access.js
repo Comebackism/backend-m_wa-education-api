@@ -5,29 +5,40 @@ import { prisma } from './prisma.js';
 /**
  * รวม helper ตรวจสิทธิ์การเข้าถึงข้อมูล (ownership / enrollment)
  * เพื่อกันไม่ให้ครูคนอื่นหรือนักเรียนคนอื่นเข้าถึงข้อมูลข้ามคน
+ *
+ * "actor" ที่ส่งเข้ามาคือ user object ของครู ({ id, role })
+ * บทบาท ADMIN (เข้าได้ทั้งฝั่งครูและนักเรียน) ข้ามการตรวจเจ้าของได้
+ * เพื่อรองรับของเดิม ฟังก์ชันยังรับ string (teacherId) ได้ด้วย
  */
+export function actorId(actor) {
+  return typeof actor === 'string' ? actor : actor?.id;
+}
 
-export async function getOwnedCourse(teacherId, courseId) {
+export function isAdminActor(actor) {
+  return typeof actor === 'object' && actor?.role === 'ADMIN';
+}
+
+export async function getOwnedCourse(actor, courseId) {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) throw ApiError.notFound('ไม่พบรายวิชา');
-  if (course.teacherId !== teacherId) throw ApiError.forbidden('รายวิชานี้ไม่ใช่ของคุณ');
+  if (!isAdminActor(actor) && course.teacherId !== actorId(actor)) throw ApiError.forbidden('รายวิชานี้ไม่ใช่ของคุณ');
   return course;
 }
 
-export async function getOwnedClassroom(teacherId, classroomId) {
+export async function getOwnedClassroom(actor, classroomId) {
   const classroom = await prisma.classroom.findUnique({
     where: { id: classroomId },
     include: { course: true },
   });
   if (!classroom) throw ApiError.notFound('ไม่พบห้องเรียน');
-  if (classroom.teacherId !== teacherId) throw ApiError.forbidden('ห้องเรียนนี้ไม่ใช่ของคุณ');
+  if (!isAdminActor(actor) && classroom.teacherId !== actorId(actor)) throw ApiError.forbidden('ห้องเรียนนี้ไม่ใช่ของคุณ');
   return classroom;
 }
 
-export async function getOwnedExam(teacherId, examId, include) {
+export async function getOwnedExam(actor, examId, include) {
   const exam = await prisma.exam.findUnique({ where: { id: examId }, include });
   if (!exam) throw ApiError.notFound('ไม่พบข้อสอบ');
-  if (exam.teacherId !== teacherId) throw ApiError.forbidden('ข้อสอบนี้ไม่ใช่ของคุณ');
+  if (!isAdminActor(actor) && exam.teacherId !== actorId(actor)) throw ApiError.forbidden('ข้อสอบนี้ไม่ใช่ของคุณ');
   return exam;
 }
 
@@ -36,13 +47,15 @@ export async function getOwnedExam(teacherId, examId, include) {
  * ตรวจเจ้าของก่อน (query เบา ๆ) แล้วค่อยดึงข้อมูลตาม include ที่ผู้เรียกต้องการ
  * เพราะ include ของผู้เรียกอาจไม่ดึง teacherId มาด้วย
  */
-export async function getOwnedSubmission(teacherId, submissionId, include) {
+export async function getOwnedSubmission(actor, submissionId, include) {
   const owner = await prisma.submission.findUnique({
     where: { id: submissionId },
     select: { exam: { select: { teacherId: true } } },
   });
   if (!owner) throw ApiError.notFound('ไม่พบการส่งข้อสอบ');
-  if (owner.exam.teacherId !== teacherId) throw ApiError.forbidden('การส่งข้อสอบนี้ไม่ใช่ข้อสอบของคุณ');
+  if (!isAdminActor(actor) && owner.exam.teacherId !== actorId(actor)) {
+    throw ApiError.forbidden('การส่งข้อสอบนี้ไม่ใช่ข้อสอบของคุณ');
+  }
 
   return prisma.submission.findUnique({ where: { id: submissionId }, include });
 }

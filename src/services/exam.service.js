@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
-import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam } from '../lib/access.js';
+import { getExamForStudent, getOwnedClassroom, getOwnedCourse, getOwnedExam, actorId, isAdminActor } from '../lib/access.js';
 import { recalculateExamTotals, recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeStudentSubmission, toNumber } from '../lib/serialize.js';
 import { toCsv } from '../lib/csv.js';
@@ -33,7 +33,7 @@ export async function createExam(teacherId, payload) {
       title: payload.title,
       description: payload.description ?? null,
       courseId: payload.courseId ?? null,
-      teacherId,
+      teacherId: actorId(teacherId),
       timeLimitMinutes: payload.timeLimitMinutes ?? null,
       defaultDisplayMode: payload.defaultDisplayMode ?? 'SINGLE_PAGE',
       questionsPerPage: payload.questionsPerPage ?? 10,
@@ -45,7 +45,11 @@ export async function createExam(teacherId, payload) {
 
 export async function listExams(teacherId, { status, courseId } = {}) {
   return prisma.exam.findMany({
-    where: { teacherId, ...(status ? { status } : {}), ...(courseId ? { courseId } : {}) },
+    where: {
+      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
+      ...(status ? { status } : {}),
+      ...(courseId ? { courseId } : {}),
+    },
     include: {
       course: { select: { id: true, code: true, title: true } },
       _count: { select: { questions: true, submissions: true, assignments: true } },
