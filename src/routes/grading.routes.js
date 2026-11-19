@@ -16,20 +16,20 @@ router.get(
   '/exams/:examId/submissions',
   validate({ params: idParams('examId'), query: z.object({ status: submissionStatus.optional() }) }),
   async (req, res) => {
-    const submissions = await gradingService.listExamSubmissions(req.user.id, req.params.examId, req.validatedQuery);
+    const submissions = await gradingService.listExamSubmissions(req.user, req.params.examId, req.validatedQuery);
     res.json({ submissions });
   },
 );
 
 // ปล่อยผลทั้งชุด (เฉพาะคนที่ตรวจครบ)
 router.post('/exams/:examId/release', validate({ params: idParams('examId') }), async (req, res) => {
-  const result = await gradingService.releaseExamResults(req.user.id, req.params.examId);
+  const result = await gradingService.releaseExamResults(req.user, req.params.examId);
   res.json(result);
 });
 
 // สถิติภาพรวมของข้อสอบชุดนี้ (ไว้ทำ dashboard: รอตรวจ/รอปล่อยผล, คะแนนเฉลี่ย, อัตราตอบถูกต่อข้อ)
 router.get('/exams/:examId/stats', validate({ params: idParams('examId') }), async (req, res) => {
-  const stats = await gradingService.getExamStats(req.user.id, req.params.examId);
+  const stats = await gradingService.getExamStats(req.user, req.params.examId);
   res.json({ stats });
 });
 
@@ -39,7 +39,7 @@ router.get(
   validate({ params: idParams('examId'), query: z.object({ status: submissionStatus.optional() }) }),
   async (req, res) => {
     const { filename, title, content } = await gradingService.exportExamResultsCsv(
-      req.user.id,
+      req.user,
       req.params.examId,
       req.validatedQuery,
     );
@@ -56,7 +56,7 @@ router.get(
 
 // รายละเอียดคำตอบทุกข้อของนักเรียน 1 คน
 router.get('/submissions/:submissionId', validate({ params: idParams('submissionId') }), async (req, res) => {
-  const submission = await gradingService.getSubmissionDetail(req.user.id, req.params.submissionId);
+  const submission = await gradingService.getSubmissionDetail(req.user, req.params.submissionId);
   res.json({ submission });
 });
 
@@ -72,14 +72,14 @@ router.patch(
     }),
   }),
   async (req, res) => {
-    const submission = await gradingService.gradeAnswer(req.user.id, req.params.answerId, req.body);
+    const submission = await gradingService.gradeAnswer(req.user, req.params.answerId, req.body);
     res.json({ submission });
   },
 );
 
 // ปุ่ม "ส่งผลไปให้นักเรียน"
 router.post('/submissions/:submissionId/release', validate({ params: idParams('submissionId') }), async (req, res) => {
-  const submission = await gradingService.releaseSubmission(req.user.id, req.params.submissionId);
+  const submission = await gradingService.releaseSubmission(req.user, req.params.submissionId);
   res.json({ submission });
 });
 

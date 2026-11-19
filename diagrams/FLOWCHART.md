@@ -89,9 +89,12 @@ flowchart TD
 flowchart TD
     S1["นักเรียนเข้าสู่ระบบ (Student Portal)"] --> S2["เลือกห้องเรียน & เลือกชุดข้อสอบที่เปิดอยู่"]
     S2 --> S3["กดปุ่ม 'เริ่มทำข้อสอบ' (Start Exam)"]
-    
+    S3 --> S3check{"ผ่านเกณฑ์การเข้าสอบ?<br/>เปิดสอบ (PUBLISHED) + อยู่ในช่วงเวลา + IP อยู่ใน allowedIpRanges"}
+    S3check -- ไม่ผ่าน --> S3deny["403 พร้อมเหตุผล<br/>(ยังไม่เปิด / ยังไม่ถึงเวลา / เลยเวลา / จำกัด IP)"]
+    S3check -- ผ่าน --> API_Filter
+
     subgraph AntiLeak1["🛡️ ระบบป้องกันเฉลยรั่ว (Backend API Protection)"]
-        S3 --> API_Filter["Backend ส่งเฉพาะโจทย์และตัวเลือก<br/>❌ กรองฟิลด์ isCorrect, referenceText, explanation ทิ้งทั้งหมด"]
+        API_Filter["Backend ส่งเฉพาะโจทย์และตัวเลือก<br/>❌ กรองฟิลด์ isCorrect, referenceText, explanation ทิ้งทั้งหมด"]
     end
 
     API_Filter --> S4["หน้าทำข้อสอบ (Student Exam UI)"]

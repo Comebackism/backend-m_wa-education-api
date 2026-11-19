@@ -17,6 +17,11 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   /// เปิด Swagger UI — ไม่ใส่ = เปิดใน dev/test, ปิดใน production
   DOCS_ENABLED: z.enum(['true', 'false']).optional(),
+  /// เพดาน rate limit ตอน dev/test (production ตรึงค่าจริงไว้ใน middleware/rateLimit.js)
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  REGISTER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  /// "true" = ปิด rate limit ทั้งหมด (มีผลเฉพาะเมื่อไม่ใช่ production)
+  RATE_LIMIT_DISABLED: z.enum(['true', 'false']).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

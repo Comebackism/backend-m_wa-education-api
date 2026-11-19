@@ -1,11 +1,11 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
-import { getOwnedCourse } from '../lib/access.js';
+import { getOwnedCourse, actorId, isAdminActor } from '../lib/access.js';
 
 export async function createCourse(teacherId, payload) {
   return prisma.course.create({
     data: {
-      teacherId,
+      teacherId: actorId(teacherId),
       code: payload.code,
       title: payload.title,
       description: payload.description ?? null,
@@ -16,7 +16,7 @@ export async function createCourse(teacherId, payload) {
 export async function listCourses(teacherId, { q } = {}) {
   return prisma.course.findMany({
     where: {
-      teacherId,
+      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
       ...(q
         ? {
             OR: [

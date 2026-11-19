@@ -36,6 +36,7 @@ export async function authenticate(req, res, next) {
 
 /**
  * จำกัดสิทธิ์ตามบทบาท เช่น requireRole('TEACHER')
+ * บทบาท ADMIN เข้าได้ทั้งฝั่งครูและฝั่งนักเรียน
  */
 export function requireRole(...roles) {
   return (req, res, next) => {
@@ -47,5 +48,5 @@ export function requireRole(...roles) {
   };
 }
 
-export const teacherOnly = requireRole('TEACHER');
-export const studentOnly = requireRole('STUDENT');
+export const teacherOnly = requireRole('TEACHER', 'ADMIN');
+export const studentOnly = requireRole('STUDENT', 'ADMIN');

@@ -20,6 +20,7 @@ datasource db {
 enum Role {
   TEACHER
   STUDENT
+  ADMIN /// เข้าได้ทั้งฝั่งครูและฝั่งนักเรียน (บัญชีเดโม/ผู้ดูแล)
 }
 
 enum ExamStatus {
@@ -115,12 +116,12 @@ model Classroom {
   id        String   @id @default(uuid()) @db.Uuid
   name      String /// e.g. "ม.4/1 ห้อง 2"
   joinCode  String   @unique /// students use it to join
-  courseId  String   @db.Uuid
+  courseId  String?  @db.Uuid /// ว่างได้ — ห้องเรียนไม่จำเป็นต้องผูกกับรายวิชา
   teacherId String   @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course         Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
   teacher        User             @relation("ClassroomTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   enrollments    Enrollment[]
   examAssignments ExamAssignment[]
@@ -156,6 +157,7 @@ model Exam {
   courseId           String?    @db.Uuid
   teacherId          String     @db.Uuid
   timeLimitMinutes   Int? /// null = ไม่จำกัดเวลา
+  allowedIpRanges    String[]   @default([]) /// รายการ IP/CIDR ที่อนุญาตให้เข้าทำข้อสอบ (ว่าง = ไม่จำกัด)
   defaultDisplayMode DisplayMode @default(SINGLE_PAGE)
   questionsPerPage   Int        @default(10)
   totalsPoints       Decimal    @default(0) @db.Decimal(7, 2)

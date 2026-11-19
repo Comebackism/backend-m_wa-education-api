@@ -77,12 +77,13 @@ export async function registerStudent({ email, password, fullName, studentCode, 
 
 /**
  * login แยกช่องทาง 2 บทบาท → ต้องระบุ role และต้องตรงกับบัญชีจริง
+ * บัญชี ADMIN เข้าได้ทั้งช่องทางนักเรียนและครู
  */
 export async function login({ email, password, role }, userAgent) {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw ApiError.unauthorized('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
   if (!user.isActive) throw ApiError.forbidden('บัญชีนี้ถูกระงับการใช้งาน');
-  if (user.role !== role) {
+  if (user.role !== role && user.role !== 'ADMIN') {
     throw ApiError.forbidden(`บัญชีนี้เป็นบทบาท ${user.role} กรุณาเข้าสู่ระบบผ่านช่องทางของ ${user.role}`);
   }
 

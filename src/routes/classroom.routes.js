@@ -11,7 +11,7 @@ router.use(authenticate);
 
 const createClassroomBody = z.object({
   name: z.string().trim().min(1).max(200),
-  courseId: uuid,
+  courseId: uuid.optional(), /// ไม่บังคับ — ห้องเรียนไม่จำเป็นต้องมีรายวิชา
 });
 
 // นักเรียน: เข้าห้องเรียนด้วยรหัส
@@ -39,17 +39,17 @@ const addStudentBody = z.object({
 const classroomIdParams = idParams('classroomId');
 
 router.get('/', validate({ query: z.object({ courseId: uuid.optional() }) }), async (req, res) => {
-  const classrooms = await classroomService.listClassrooms(req.user.id, req.validatedQuery);
+  const classrooms = await classroomService.listClassrooms(req.user, req.validatedQuery);
   res.json({ classrooms });
 });
 
 router.post('/', validate({ body: createClassroomBody }), async (req, res) => {
-  const classroom = await classroomService.createClassroom(req.user.id, req.body);
+  const classroom = await classroomService.createClassroom(req.user, req.body);
   res.status(201).json({ classroom });
 });
 
 router.get('/:classroomId', validate({ params: classroomIdParams }), async (req, res) => {
-  const classroom = await classroomService.getClassroomDetail(req.user.id, req.params.classroomId);
+  const classroom = await classroomService.getClassroomDetail(req.user, req.params.classroomId);
   res.json({ classroom });
 });
 
@@ -57,19 +57,19 @@ router.patch(
   '/:classroomId',
   validate({ params: classroomIdParams, body: z.object({ name: z.string().trim().min(1).max(200) }) }),
   async (req, res) => {
-    const classroom = await classroomService.updateClassroom(req.user.id, req.params.classroomId, req.body);
+    const classroom = await classroomService.updateClassroom(req.user, req.params.classroomId, req.body);
     res.json({ classroom });
   },
 );
 
 router.delete('/:classroomId', validate({ params: classroomIdParams }), async (req, res) => {
-  const result = await classroomService.deleteClassroom(req.user.id, req.params.classroomId);
+  const result = await classroomService.deleteClassroom(req.user, req.params.classroomId);
   res.json(result);
 });
 
 // รายชื่อนักเรียนในห้อง
 router.get('/:classroomId/students', validate({ params: classroomIdParams }), async (req, res) => {
-  await classroomService.ensureOwned(req.user.id, req.params.classroomId);
+  await classroomService.ensureOwned(req.user, req.params.classroomId);
   const students = await classroomService.listStudents(req.params.classroomId);
   res.json({ students });
 });
@@ -77,7 +77,7 @@ router.get('/:classroomId/students', validate({ params: classroomIdParams }), as
 // ส่งออกรายชื่อนักเรียนในห้องเป็น CSV
 router.get('/:classroomId/students/export', validate({ params: classroomIdParams }), async (req, res) => {
   const { filename, classroomName, content } = await classroomService.exportClassroomStudentsCsv(
-    req.user.id,
+    req.user,
     req.params.classroomId,
   );
 
@@ -97,7 +97,7 @@ router.post(
     { message: 'ต้องระบุ studentId, email หรือ studentCode อย่างใดอย่างหนึ่ง' },
   ) }),
   async (req, res) => {
-    const result = await classroomService.addStudentToClassroom(req.user.id, req.params.classroomId, req.body);
+    const result = await classroomService.addStudentToClassroom(req.user, req.params.classroomId, req.body);
     res.status(201).json(result);
   },
 );
@@ -108,7 +108,7 @@ router.delete(
   validate({ params: z.object({ classroomId: uuid, studentId: uuid }) }),
   async (req, res) => {
     const result = await classroomService.removeStudentFromClassroom(
-      req.user.id,
+      req.user,
       req.params.classroomId,
       req.params.studentId,
     );

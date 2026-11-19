@@ -18,27 +18,27 @@ const courseBody = z.object({
 const coursePatch = courseBody.partial();
 
 router.get('/', validate({ query: z.object({ q: optionalQueryString }) }), async (req, res) => {
-  const courses = await courseService.listCourses(req.user.id, req.validatedQuery);
+  const courses = await courseService.listCourses(req.user, req.validatedQuery);
   res.json({ courses });
 });
 
 router.post('/', validate({ body: courseBody }), async (req, res) => {
-  const course = await courseService.createCourse(req.user.id, req.body);
+  const course = await courseService.createCourse(req.user, req.body);
   res.status(201).json({ course });
 });
 
 router.get('/:courseId', validate({ params: idParams('courseId') }), async (req, res) => {
-  const course = await courseService.getCourseDetail(req.user.id, req.params.courseId);
+  const course = await courseService.getCourseDetail(req.user, req.params.courseId);
   res.json({ course });
 });
 
 router.patch('/:courseId', validate({ params: idParams('courseId'), body: coursePatch }), async (req, res) => {
-  const course = await courseService.updateCourse(req.user.id, req.params.courseId, req.body);
+  const course = await courseService.updateCourse(req.user, req.params.courseId, req.body);
   res.json({ course });
 });
 
 router.delete('/:courseId', validate({ params: idParams('courseId') }), async (req, res) => {
-  const result = await courseService.deleteCourse(req.user.id, req.params.courseId);
+  const result = await courseService.deleteCourse(req.user, req.params.courseId);
   res.json(result);
 });
 
