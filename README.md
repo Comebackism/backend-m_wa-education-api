@@ -937,11 +937,14 @@ npm run format:check  # ตรวจว่ารูปแบบตรงตา�
 5. `npm run test:unit` — unit test เร็ว ไม่แตะฐานข้อมูล (ด่านแรก)
 6. `npm run test:db` — สร้าง/ตรวจฐานข้อมูลเทสต์ + `prisma migrate deploy`
 7. `prisma migrate diff --exit-code` — **กันลืมทำ migration** (schema ต่างจาก DB = build แดง)
-8. `npm run test:ci` — integration test + JUnit XML + LCOV
+8. `npm run test:ci` — integration test + JUnit XML + LCOV + **branch gate 85%**
 9. `npm audit --omit=dev` — รายงานช่องโหว่ (ยังไม่บล็อก build)
 
 หลังจบ build จะเก็บผล JUnit + Coverage พร้อม **quality gate**:
-`LINE < 95%` = build **แดง**, `BRANCH < 85%` = build **เหลือง (unstable)**
+
+- `LINE < 95%` → build **แดง** (Coverage plugin ของ Jenkins)
+- `BRANCH < 85%` → build **แดง** (บังคับใน `scripts/ci-test.mjs` เพราะ Coverage plugin
+  อ่านค่า branch จาก LCOV ของ Node ไม่ได้) — ปรับเพดานได้ด้วย env `COVERAGE_MIN_BRANCH`
 
 **สิ่งที่ต้องเตรียมบนเครื่อง agent**
 
@@ -984,6 +987,7 @@ npm run format:check  # ตรวจว่ารูปแบบตรงตา�
 | แอปไม่สตาร์ต พิมพ์ `[env] invalid environment configuration` | ค่าใน `.env` ขาด/ผิด (เช่น secret สั้นกว่า 16 ตัวอักษร, `DATABASE_URL` ว่าง) | ตรวจ `.env` เทียบกับตารางตัวแปรด้านบน |
 | `Can't reach database server` / Prisma เชื่อมต่อไม่ได้ | ยังไม่เปิด PostgreSQL หรือพอร์ตไม่ตรง | `docker compose up -d` แล้วเช็คว่า `DATABASE_URL` ใช้พอร์ต 5433 (Docker) หรือ 5432 (ในเครื่อง) |
 | ต่อ DB ไม่ได้ทั้งที่ Docker ขึ้นแล้ว | healthcheck ยังไม่ผ่าน | รอสักครู่ (`pg_isready`) หรือดู log `docker compose logs db` |
+| log Jenkins มีข้อความไทยเป็นตัวขยะ (`����ͧ`) | Jenkins JVM ถอดรหัส output ด้วย codepage ของ Windows ไม่ใช่ UTF-8 | เพิ่ม `-Dfile.encoding=UTF-8` ใน arguments ของ Jenkins (`jenkins.xml` หรือ `JAVA_TOOL_OPTIONS`) แล้วรีสตาร์ต — `chcp 65001` ใน `bat` ช่วยได้แค่ฝั่ง process ลูก |
 | `@prisma/client did not initialize yet` | ยังไม่ generate client | `npm run generate` |
 | ล็อกอินแล้วขึ้น `403` "บัญชีนี้เป็นบทบาท …" | ส่ง `role` ไม่ตรงกับบัญชีจริง | ส่ง `role` ให้ตรง (ครู/นักเรียน) |
 | `429` ตอนล็อกอิน | เกิน rate limit (ค่าเริ่มต้น 10 ครั้ง/15 นาที ต่อ IP) | รอตาม `Retry-After` ใน response แล้วลองใหม่ · ตอนพัฒนาให้ตั้ง `LOGIN_RATE_LIMIT_MAX` สูง ๆ หรือ `RATE_LIMIT_DISABLED=true` ใน `.env` แล้วรีสตาร์ต (ตัวนับเป็น in-memory → รีสตาร์ตเซิร์ฟเวอร์ก็ล้าง) |

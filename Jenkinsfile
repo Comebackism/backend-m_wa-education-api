@@ -48,7 +48,8 @@ pipeline {
   stages {
     stage('ตรวจสอบเครื่องมือ') {
       steps {
-        // chcp 65001 = บังคับ console เป็น UTF-8 จะได้อ่านข้อความไทยใน log ได้
+        // chcp 65001 = ให้ process ลูกส่งออกเป็น UTF-8
+        // (ถ้าอยากให้ log ไทยอ่านได้ครบ ต้องรีสตาร์ต Jenkins ด้วย -Dfile.encoding=UTF-8 — ดู README)
         bat 'chcp 65001 >nul & node scripts/ci-check.mjs'
         bat 'chcp 65001 >nul & git rev-parse --short HEAD'
       }
@@ -116,14 +117,15 @@ pipeline {
       junit allowEmptyResults: true, testResults: 'reports/junit.xml'
 
       // เผยแพร่ coverage + quality gate (Coverage plugin, parser LCOV)
-      // LINE < 95% = build แดง, BRANCH < 85% = build เหลือง (unstable)
+      // LINE < 95% = build แดง
       script {
         try {
+          // LINE < 95% = build แดง (branch coverage 85% บังคับใน scripts/ci-test.mjs
+          // เพราะ Coverage plugin อ่านค่า branch จาก LCOV ของ Node ไม่ได้)
           recordCoverage(
             tools: [[parser: 'LCOV', pattern: 'coverage/lcov.info']],
             qualityGates: [
               [threshold: 95.0, metric: 'LINE', unstable: false],
-              [threshold: 85.0, metric: 'BRANCH', unstable: true],
             ],
           )
         } catch (err) {
