@@ -13,6 +13,10 @@ src/generated/
 *.log
 npm-debug.log*
 
+# test artifacts (สร้างโดย npm run test:ci สำหรับ CI)
+reports/
+coverage/
+
 # editor / os
 .vscode/
 .idea/

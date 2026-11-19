@@ -17,7 +17,13 @@
     "studio": "prisma studio",
     "seed": "prisma db seed",
     "reset": "prisma migrate reset --force",
-    "test:realtime": "node scripts/realtime-smoke.mjs"
+    "test:realtime": "node scripts/realtime-smoke.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "test:unit": "node --import ./tests/setup-env.js --test \"tests/unit/**/*.test.js\"",
+    "test:integration": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/integration/**/*.test.js\"",
+    "test": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "test:coverage": "node --import ./tests/setup-env.js --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=\"src/**\" \"tests/**/*.test.js\"",
+    "test:ci": "node scripts/ci-test.mjs"
   },
   "keywords": [
     "exam",
