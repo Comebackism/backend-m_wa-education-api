@@ -181,6 +181,21 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/auth/password': {
+      patch: {
+        tags: ['Auth'],
+        summary: 'เปลี่ยนรหัสผ่านของบัญชีตัวเอง',
+        description:
+          'ใช้ได้ทุกบทบาทที่เข้าสู่ระบบอยู่ (นักเรียน / ครู / ผู้ดูแล) — ต้องส่ง **รหัสผ่านปัจจุบัน** มาด้วยเสมอ ' +
+          'เพื่อยืนยันตัวตน · เมื่อสำเร็จ refresh token ทุกตัวของบัญชีนี้จะถูกเพิกถอน ' +
+          '(เครื่องอื่นต้องเข้าสู่ระบบใหม่) แล้วคืน token ชุดใหม่ให้เครื่องที่เรียก',
+        requestBody: body(ref('ChangePasswordInput')),
+        responses: {
+          ...ok('เปลี่ยนรหัสผ่านสำเร็จ คืนข้อมูลผู้ใช้ + token ชุดใหม่', ref('AuthResponse')),
+          ...pick(400, 401, 429, 500),
+        },
+      },
+    },
 
     // =======================================================================
     // Courses (teacher)
@@ -1069,6 +1084,20 @@ export const openApiDocument = {
         type: 'object',
         required: ['refreshToken'],
         properties: { refreshToken: { type: 'string' } },
+      },
+      ChangePasswordInput: {
+        type: 'object',
+        required: ['currentPassword', 'newPassword'],
+        properties: {
+          currentPassword: { type: 'string', maxLength: 72, description: 'รหัสผ่านที่ใช้อยู่ตอนนี้' },
+          newPassword: {
+            type: 'string',
+            minLength: 8,
+            maxLength: 72,
+            description: 'รหัสผ่านใหม่ (ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน)',
+          },
+        },
+        example: { currentPassword: 'Student123!', newPassword: 'NewPass1234' },
       },
 
       // --- course / classroom --------------------------------------------

@@ -93,6 +93,28 @@ export async function login({ email, password, role }, userAgent) {
   return { user, tokens: await issueTokens(user, userAgent) };
 }
 
+/**
+ * เปลี่ยนรหัสผ่านของบัญชีตัวเอง (ทุกบทบาทที่ล็อกอินอยู่)
+ * - ต้องยืนยันรหัสผ่านปัจจุบันก่อน
+ * - เพิกถอน refresh token ทุกตัว (session เก่าทุกเครื่องหลุด) แล้วออกชุดใหม่ให้เครื่องนี้
+ */
+export async function changePassword(user, { currentPassword, newPassword }, userAgent) {
+  const ok = await verifyPassword(currentPassword, user.passwordHash);
+  if (!ok) throw ApiError.badRequest('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(newPassword) },
+  });
+
+  await prisma.refreshToken.updateMany({
+    where: { userId: user.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+
+  return { user: updated, tokens: await issueTokens(updated, userAgent) };
+}
+
 /** ต่ออายุ token (rotate: refresh token เก่าถูกเพิกถอนทันที) */
 export async function refresh(refreshToken, userAgent) {
   let payload;

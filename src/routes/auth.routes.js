@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/auth.js';
-import { loginLimiter, registerLimiter } from '../middleware/rateLimit.js';
+import { loginLimiter, registerLimiter, changePasswordLimiter } from '../middleware/rateLimit.js';
 import { publicUser } from '../lib/errors.js';
 import * as authService from '../services/auth.service.js';
 
@@ -32,6 +32,16 @@ const loginSchema = z.object({
 const refreshSchema = z.object({
   refreshToken: z.string().min(10, 'ต้องระบุ refreshToken'),
 });
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'ต้องระบุรหัสผ่านปัจจุบัน').max(72),
+    newPassword: passwordSchema,
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน',
+    path: ['newPassword'],
+  });
 
 const userAgentOf = (req) => req.headers['user-agent'];
 
@@ -73,5 +83,18 @@ router.post('/logout', validate({ body: refreshSchema }), async (req, res) => {
 router.get('/me', authenticate, (req, res) => {
   res.json({ user: publicUser(req.user) });
 });
+
+// เปลี่ยนรหัสผ่านของบัญชีตัวเอง (นักเรียน/ครู/ผู้ดูแล ใช้ได้เหมือนกัน)
+// ต้องยืนยันรหัสผ่านปัจจุบัน และเมื่อสำเร็จ refresh token ทุกเครื่องเดิมจะถูกเพิกถอน
+router.patch(
+  '/password',
+  changePasswordLimiter,
+  authenticate,
+  validate({ body: changePasswordSchema }),
+  async (req, res) => {
+    const result = await authService.changePassword(req.user, req.body, userAgentOf(req));
+    respondWithTokens(res, result);
+  },
+);
 
 export default router;

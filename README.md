@@ -213,6 +213,9 @@ User ─┬─ role TEACHER → เป็นเจ้าของ Course / Class
 - **refresh token** (ค่าเริ่มต้น 7 วัน) ถูก **rotate ทุกครั้ง** ที่ต่ออายุ — ตัวเก่าถูกเพิกถอนทันที
   และเก็บใน DB แบบ **hashed sha256** (`tokenHash` unique) ถ้า DB รั่วก็ยังปลอม token ไม่ได้
 - `POST /api/auth/logout` เพิกถอน refresh token (`204 No Content`)
+- `PATCH /api/auth/password` เปลี่ยนรหัสผ่านของบัญชีตัวเอง (นักเรียน/ครู/ผู้ดูแล)
+  — ต้องส่ง `currentPassword` + `newPassword` (8–72 ตัว, ต้องไม่ซ้ำของเดิม)
+  — สำเร็จแล้ว refresh token **ทุกตัว** ของบัญชีนั้นถูกเพิกถอน (เครื่องอื่นต้องล็อกอินใหม่) และคืน token ชุดใหม่ให้เครื่องที่เรียก
 - บัญชีที่ `isActive = false` จะถูกปฏิเสธทุกเส้นทาง (รวมถึงตอน refresh)
 - access token เก็บ issuer `wa-education-api` และมี `type: 'access' | 'refresh'` — ใช้สลับกันไม่ได้
 
@@ -688,6 +691,7 @@ curl -X POST http://localhost:4000/api/auth/logout -H "Content-Type: application
 | :--- | :--- | :--- |
 | `POST /api/auth/login` | ต่อ IP | **10 ครั้ง / 15 นาที** |
 | `POST /api/auth/teacher/register` และ `/student/register` | ต่อ IP | **20 ครั้ง / ชั่วโมง** |
+| `PATCH /api/auth/password` | ต่อ IP | **10 ครั้ง / 15 นาที** |
 
 > เกินเพดานจะได้ `429` พร้อมข้อความไทย ("พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง")
 

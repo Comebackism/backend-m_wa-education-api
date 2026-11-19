@@ -11,6 +11,7 @@ const jsonMessage = (message) => ({
  */
 const PROD_LOGIN_LIMIT = 10; // ครั้ง / 15 นาที
 const PROD_REGISTER_LIMIT = 20; // ครั้ง / 1 ชั่วโมง
+const PROD_CHANGE_PASSWORD_LIMIT = 10; // ครั้ง / 15 นาที
 
 /**
  * ปิด limiter เพื่อทดสอบได้ด้วย `RATE_LIMIT_DISABLED=true`
@@ -36,4 +37,14 @@ export const registerLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: jsonMessage('สมัครสมาชิกหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง'),
+});
+
+/** กันเดารหัสผ่านปัจจุบันซ้ำ ๆ ที่ endpoint เปลี่ยนรหัสผ่าน */
+export const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isProduction ? PROD_CHANGE_PASSWORD_LIMIT : env.CHANGE_PASSWORD_RATE_LIMIT_MAX,
+  skip: skipWhenDisabled,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: jsonMessage('เปลี่ยนรหัสผ่านหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง'),
 });
