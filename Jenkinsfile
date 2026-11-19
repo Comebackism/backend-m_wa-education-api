@@ -37,6 +37,9 @@ pipeline {
     // บังคับโหมดเทสต์ให้ทุกสคริปต์ที่รันในไปป์ไลน์นี้
     NODE_ENV = 'test'
     TEST_DATABASE_URL = "${params.TEST_DATABASE_URL}"
+    // Prisma CLI (prisma generate / migrate) อ่าน connection string จาก prisma.config.js → env('DATABASE_URL')
+    // บน Jenkins ไม่มีไฟล์ .env จึงต้องตั้งตรงนี้ (ชี้ฐานข้อมูลเทสต์เสมอ; ตัวเทสต์ยังใช้ TEST_DATABASE_URL)
+    DATABASE_URL = "${params.TEST_DATABASE_URL}"
     // ลด noise ของ npm ใน log
     NPM_CONFIG_AUDIT = 'false'
     NPM_CONFIG_FUND = 'false'

@@ -933,6 +933,8 @@ npm run test:realtime
 - ตั้งพารามิเตอร์ **`TEST_DATABASE_URL`** ให้ชี้ฐานข้อมูลที่ชื่อลงท้าย `_test`
   (ค่าเริ่มต้น `postgresql://postgres:postgres@localhost:5432/wa_education_test?schema=public`)
   แนะนำให้เก็บรหัสผ่านเป็น **Jenkins Credentials** แล้วอ้างใน `environment` ของ job
+- ไม่ต้องมีไฟล์ `.env` บน agent — `Jenkinsfile` ตั้ง `DATABASE_URL` (ให้ Prisma CLI ใช้ตอน
+  `prisma generate` / `migrate deploy`) และ `TEST_DATABASE_URL` ให้เองจากพารามิเตอร์ข้างบน
 
 **ผลลัพธ์หลัง build**
 
