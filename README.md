@@ -910,17 +910,44 @@ npm run test:realtime
 
 ---
 
+### Lint / Format
+
+```bash
+npm run lint          # ตรวจด้วย ESLint (flat config)
+npm run lint:fix      # แก้อัตโนมัติเท่าที่ทำได้
+npm run format        # จัดรูปแบบด้วย Prettier
+npm run format:check  # ตรวจว่ารูปแบบตรงตาม Prettier (ใช้ใน CI)
+```
+
+> ใช้ ESLint จับ bug (ตัวแปรไม่ได้ประกาศ/ไม่ได้ใช้) และ Prettier จัดรูปแบบ —
+> `format:check` จะทำให้ CI แดงถ้ามีไฟล์ที่ยังไม่จัดรูปแบบ
+
+---
+
 ## 🔁 CI ด้วย Jenkins
 
 ไปป์ไลน์อยู่ใน [`Jenkinsfile`](Jenkinsfile) ที่รากโปรเจกต์ รันบน **agent Windows** (ใช้ `bat`)
-ลำดับสเต็ป: ตรวจเครื่องมือ → `npm ci` + `npm run generate` → `npm run test:db` → `npm run test:ci`
-แล้วเก็บผลเป็น JUnit XML + LCOV
+
+**ลำดับสเต็ป**
+
+1. ตรวจเครื่องมือ — Node ต้อง ≥ เวอร์ชันใน `.nvmrc` (`scripts/ci-check.mjs`)
+2. `npm ci` + `npm run generate`
+3. `prisma validate` — ตรวจ schema ก่อนไปต่อ
+4. `npm run lint` (ESLint) + `npm run format:check` (Prettier)
+5. `npm run test:unit` — unit test เร็ว ไม่แตะฐานข้อมูล (ด่านแรก)
+6. `npm run test:db` — สร้าง/ตรวจฐานข้อมูลเทสต์ + `prisma migrate deploy`
+7. `prisma migrate diff --exit-code` — **กันลืมทำ migration** (schema ต่างจาก DB = build แดง)
+8. `npm run test:ci` — integration test + JUnit XML + LCOV
+9. `npm audit --omit=dev` — รายงานช่องโหว่ (ยังไม่บล็อก build)
+
+หลังจบ build จะเก็บผล JUnit + Coverage พร้อม **quality gate**:
+`LINE < 95%` = build **แดง**, `BRANCH < 85%` = build **เหลือง (unstable)**
 
 **สิ่งที่ต้องเตรียมบนเครื่อง agent**
 
 | ต้องมี | รายละเอียด |
 | :--- | :--- |
-| Node.js | **≥ 24.18.0** (ตาม `package.json` → `engines`) — สเต็ปแรกจะพังเร็วถ้าเวอร์ชันไม่ถึง |
+| Node.js | **≥ เวอร์ชันใน `.nvmrc`** (ปัจจุบัน `24.18.0`) — สเต็ปแรกจะพังเร็วถ้าเวอร์ชันไม่ถึง |
 | npm | มาพร้อม Node |
 | PostgreSQL | เข้าถึงได้จาก agent (ค่าเริ่มต้น `localhost:5432`) |
 | git | สำหรับ checkout |
@@ -930,18 +957,20 @@ npm run test:realtime
 - ใน Jenkins สร้าง job ชนิด **Pipeline** แล้วชี้ *Pipeline script from SCM* ไปที่ repo นี้ (สคริปต์ = `Jenkinsfile`)
 - กำหนด **label ของ agent** ใน `Jenkinsfile` (`agent { label 'windows' }`) ให้ตรงกับ label ของเครื่อง Windows
   ที่ต่อกับ Jenkins — ถ้าไม่แน่ใจให้ใช้ `agent any` เมื่อมีแต่ agent Windows
-- ตั้งพารามิเตอร์ **`TEST_DATABASE_URL`** ให้ชี้ฐานข้อมูลที่ชื่อลงท้าย `_test`
-  (ค่าเริ่มต้น `postgresql://postgres:postgres@localhost:5432/wa_education_test?schema=public`)
-  แนะนำให้เก็บรหัสผ่านเป็น **Jenkins Credentials** แล้วอ้างใน `environment` ของ job
-- ไม่ต้องมีไฟล์ `.env` บน agent — `Jenkinsfile` ตั้ง `DATABASE_URL` (ให้ Prisma CLI ใช้ตอน
-  `prisma generate` / `migrate deploy`) และ `TEST_DATABASE_URL` ให้เองจากพารามิเตอร์ข้างบน
+- สร้าง **Credential ชนิด Secret text ชื่อ `wa-education-test-db-url`** เก็บ connection string ของฐานข้อมูล
+  ที่ชื่อลงท้าย `_test` (เช่น `postgresql://postgres:postgres@localhost:5432/wa_education_test?schema=public`)
+  — `Jenkinsfile` ใช้ค่านี้ทั้ง `TEST_DATABASE_URL` และ `DATABASE_URL` (ให้ Prisma CLI ใช้ตอน
+  `generate` / `migrate`) และจะถูก **mask ใน log** อัตโนมัติ
+- ไม่ต้องมีไฟล์ `.env` บน agent
+- npm cache ตั้งไว้ที่ `D:\jenkins-cache\npm` (นอก workspace จึงไม่ถูกลบด้วย `deleteDir()` ทุกบิลด์) — แก้ได้ใน `environment`
+- **trigger เป็นแบบกดเอง** (ไม่มี webhook/poll) — ถ้าต้องการอัตโนมัติให้เพิ่ม `pollSCM` หรือ webhook ภายหลัง
 
 **ผลลัพธ์หลัง build**
 
 - แท็บ **Tests** — ผลทดสอบรายเคสจาก `reports/junit.xml`
 - แท็บ **Coverage** — coverage จาก `coverage/lcov.info` (ต้องติดตั้ง **Coverage plugin**;
   ถ้ายังไม่มีไปป์ไลน์จะข้ามการเผยแพร่ coverage อย่างเงียบ ๆ ไม่ทำให้ build แดง)
-- **Artifacts** — ดาวน์โหลด `reports/junit.xml` และ `coverage/lcov.info` ได้
+- **Artifacts** — ดาวน์โหลดทั้งโฟลเดอร์ `reports/` และ `coverage/` ได้
 
 > เทสต์ใช้ฐานข้อมูลเทสต์ร่วมกันและ `TRUNCATE` ทุกเคส — `Jenkinsfile` จึงปิดการรันซ้อนด้วย
 > `disableConcurrentBuilds()` ไม่ให้สองบิลด์แย่งกันล้างข้อมูล

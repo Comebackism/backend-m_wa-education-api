@@ -2,17 +2,24 @@
  * Jenkinsfile — CI ของ backend WA Education API (รันบน agent Windows)
  *
  * ลำดับงาน
- *   1. ตรวจเครื่องมือ (Node >= 24.18 ตาม engines)   → scripts/ci-check.mjs
- *   2. npm ci + prisma generate                      → เตรียม dependency
- *   3. เตรียมฐานข้อมูลเทสต์ (migrate)                → scripts/test-db.mjs
- *   4. รัน unit + integration test พร้อม coverage    → scripts/ci-test.mjs
- *   5. เก็บผล: JUnit XML + lcov coverage
+ *   1. ตรวจเครื่องมือ (Node >= .nvmrc)                    → scripts/ci-check.mjs
+ *   2. npm ci + prisma generate                           → เตรียม dependency
+ *   3. ตรวจ schema Prisma (validate + migration drift)     → กันลืมทำ migration
+ *   4. lint + format check                                 → ESLint + Prettier
+ *   5. unit test (เร็ว ไม่ใช้ DB)                          → ด่านแรกก่อนแตะ DB
+ *   6. เตรียมฐานข้อมูลเทสต์ (migrate deploy)               → scripts/test-db.mjs
+ *   7. รัน integration test + coverage                     → scripts/ci-test.mjs
+ *   8. ตรวจช่องโหว่ dependency (ไม่บล็อก build)            → npm audit
+ *
+ * สิ่งที่ต้องเตรียมบน Jenkins
+ *   - Credential ชนิด Secret text ชื่อ "wa-education-test-db-url"
+ *     เก็บ connection string ของฐานข้อมูลที่ชื่อลงท้าย "_test"
+ *     (ใช้ทั้ง TEST_DATABASE_URL และ DATABASE_URL ให้ Prisma CLI)
+ *   - Agent ต้องเป็น Windows (สเต็ปใช้ `bat`) — ปรับ `agent { label ... }` ให้ตรงเครื่อง
  *
  * หมายเหตุ
- *   - ต้องมี PostgreSQL ที่ agent เข้าถึงได้ และตั้ง TEST_DATABASE_URL ให้ชี้ฐานข้อมูลที่ชื่อลงท้าย "_test"
  *   - เทสต์ใช้ฐานข้อมูลร่วมกัน (TRUNCATE) จึงปิดการรันซ้อนด้วย disableConcurrentBuilds()
- *   - agent ต้องเป็น Windows เพราะสเต็ปใช้ `bat` — ถ้า label ของ agent ไม่ใช่ค่าที่รองรับ
- *     ให้แก้ `agent { label ... }` ด้านล่าง (หรือใช้ `agent any` ถ้ามีแต่ agent Windows)
+ *   - trigger เป็นแบบกดเอง (ไม่มี webhook/poll) — กรณีต้องการอัตโนมัติให้เพิ่ม pollSCM หรือ webhook
  */
 pipeline {
   agent { label 'windows' }
@@ -25,21 +32,14 @@ pipeline {
     timeout(time: 30, unit: 'MINUTES')
   }
 
-  parameters {
-    string(
-      name: 'TEST_DATABASE_URL',
-      defaultValue: 'postgresql://postgres:postgres@localhost:5432/wa_education_test?schema=public',
-      description: 'connection string ของฐานข้อมูลเทสต์ (ชื่อ DB ต้องลงท้าย "_test" เท่านั้น)',
-    )
-  }
-
   environment {
     // บังคับโหมดเทสต์ให้ทุกสคริปต์ที่รันในไปป์ไลน์นี้
     NODE_ENV = 'test'
-    TEST_DATABASE_URL = "${params.TEST_DATABASE_URL}"
-    // Prisma CLI (prisma generate / migrate) อ่าน connection string จาก prisma.config.js → env('DATABASE_URL')
-    // บน Jenkins ไม่มีไฟล์ .env จึงต้องตั้งตรงนี้ (ชี้ฐานข้อมูลเทสต์เสมอ; ตัวเทสต์ยังใช้ TEST_DATABASE_URL)
-    DATABASE_URL = "${params.TEST_DATABASE_URL}"
+    // ดึงจาก Jenkins Credentials (ถูก mask ใน log) — ไม่ต้องมีไฟล์ .env บน agent
+    TEST_DATABASE_URL = credentials('wa-education-test-db-url')
+    DATABASE_URL = credentials('wa-education-test-db-url')
+    // cache ของ npm เก็บนอก workspace เพื่อไม่ให้ deleteDir() ลบทิ้งทุกบิลด์
+    NPM_CONFIG_CACHE = 'D:\\jenkins-cache\\npm'
     // ลด noise ของ npm ใน log
     NPM_CONFIG_AUDIT = 'false'
     NPM_CONFIG_FUND = 'false'
@@ -48,28 +48,64 @@ pipeline {
   stages {
     stage('ตรวจสอบเครื่องมือ') {
       steps {
-        bat 'node scripts/ci-check.mjs'
-        bat 'git rev-parse --short HEAD'
+        // chcp 65001 = บังคับ console เป็น UTF-8 จะได้อ่านข้อความไทยใน log ได้
+        bat 'chcp 65001 >nul & node scripts/ci-check.mjs'
+        bat 'chcp 65001 >nul & git rev-parse --short HEAD'
       }
     }
 
     stage('ติดตั้ง dependencies') {
       steps {
-        bat 'npm ci'
+        bat 'chcp 65001 >nul & npm ci'
         // Prisma v7 ไม่ generate client ให้อัตโนมัติหลังติดตั้ง
-        bat 'npm run generate'
+        bat 'chcp 65001 >nul & npm run generate'
+      }
+    }
+
+    stage('ตรวจ schema Prisma') {
+      steps {
+        bat 'chcp 65001 >nul & node node_modules/prisma/build/index.js validate'
+      }
+    }
+
+    stage('Lint + format') {
+      steps {
+        bat 'chcp 65001 >nul & npm run lint'
+        bat 'chcp 65001 >nul & npm run format:check'
+      }
+    }
+
+    stage('Unit test') {
+      steps {
+        // unit ไม่แตะ DB — พังเร็วโดยไม่ต้องรอ stage ฐานข้อมูล
+        bat 'chcp 65001 >nul & npm run test:unit'
       }
     }
 
     stage('เตรียมฐานข้อมูลเทสต์') {
       steps {
-        bat 'npm run test:db'
+        bat 'chcp 65001 >nul & npm run test:db'
       }
     }
 
-    stage('รันเทสต์ + coverage') {
+    stage('ตรวจ migration drift') {
       steps {
-        bat 'npm run test:ci'
+        // ผ่าน = สถานะ DB (DATABASE_URL) หลัง migrate deploy ตรงกับ prisma/schema.prisma
+        // exit 2 = schema ถูกแก้แต่ยังไม่มี migration → ให้ build แดง
+        bat 'chcp 65001 >nul & node node_modules/prisma/build/index.js migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code'
+      }
+    }
+
+    stage('Integration test + coverage') {
+      steps {
+        bat 'chcp 65001 >nul & npm run test:ci'
+      }
+    }
+
+    stage('ตรวจช่องโหว่ dependencies') {
+      steps {
+        // รายงานไว้ก่อน — ยังไม่บล็อก build (เปลี่ยนเป็น fail ได้เมื่อพร้อม)
+        bat 'chcp 65001 >nul & npm audit --omit=dev --audit-level=high || exit /b 0'
       }
     }
   }
@@ -79,22 +115,28 @@ pipeline {
       // ผลทดสอบรายเคส (ต้องมี JUnit plugin — มาพร้อม Jenkins อยู่แล้ว)
       junit allowEmptyResults: true, testResults: 'reports/junit.xml'
 
-      // เผยแพร่ coverage ถ้าติดตั้ง Coverage plugin (parser LCOV) ไว้
-      // ถ้ายังไม่มี จะข้ามอย่างเงียบ ๆ ไม่ทำให้ build แดง
+      // เผยแพร่ coverage + quality gate (Coverage plugin, parser LCOV)
+      // LINE < 95% = build แดง, BRANCH < 85% = build เหลือง (unstable)
       script {
         try {
-          recordCoverage tools: [[parser: 'LCOV', pattern: 'coverage/lcov.info']]
+          recordCoverage(
+            tools: [[parser: 'LCOV', pattern: 'coverage/lcov.info']],
+            qualityGates: [
+              [threshold: 95.0, metric: 'LINE', unstable: false],
+              [threshold: 85.0, metric: 'BRANCH', unstable: true],
+            ],
+          )
         } catch (err) {
           echo "ข้ามการเผยแพร่ coverage (ยังไม่ได้ติดตั้ง Coverage plugin): ${err.message}"
         }
       }
 
-      // เก็บไฟล์ผลลัพธ์ไว้ให้ดาวน์โหลดจากหน้า build
-      archiveArtifacts artifacts: 'reports/junit.xml,coverage/lcov.info', allowEmptyArchive: true
+      // เก็บไฟล์ผลลัพธ์ทั้งโฟลเดอร์ไว้ให้ดาวน์โหลดจากหน้า build
+      archiveArtifacts artifacts: 'reports/**,coverage/**', allowEmptyArchive: true
     }
 
     success {
-      echo 'ผ่านทุกขั้นตอน: เทสต์และ coverage เรียบร้อย'
+      echo 'ผ่านทุกขั้นตอน: lint, เทสต์, coverage และ schema เรียบร้อย'
     }
 
     failure {
@@ -102,7 +144,7 @@ pipeline {
     }
 
     cleanup {
-      // ล้าง workspace กัน node_modules ค้าง/ปนกันข้ามบิลด์
+      // ล้าง workspace กัน node_modules ค้าง/ปนกันข้ามบิลด์ (npm cache อยู่นอก workspace จึงไม่หาย)
       script {
         try {
           deleteDir()

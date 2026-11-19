@@ -35,10 +35,43 @@ adminUrl.pathname = '/postgres';
 adminUrl.search = '';
 
 console.log(`[test-db] ตรวจสอบฐานข้อมูล "${databaseName}" ...`);
-const client = new Client({ connectionString: adminUrl.toString() });
+
+/**
+ * ต่อฐานข้อมูลแบบลองซ้ำ — บน CI บริการ PostgreSQL อาจยังไม่พร้อมตอน stage เริ่ม
+ * จึงลองใหม่หลายครั้งก่อนยอมแพ้ แทนที่จะพังทันที
+ */
+async function connectWithRetry(connectionString, attempts = 5, delayMs = 2000) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const client = new Client({ connectionString });
+    try {
+      await client.connect();
+      return client;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[test-db] เชื่อมต่อไม่สำเร็จ (ครั้งที่ ${attempt}/${attempts}): ${error.message}`);
+      try {
+        await client.end();
+      } catch {
+        // ไม่เป็นไร — client ที่ต่อไม่สำเร็จอาจปิดไม่ได้
+      }
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
+let client;
+try {
+  client = await connectWithRetry(adminUrl.toString());
+} catch (error) {
+  console.error(`[test-db] เชื่อมต่อฐานข้อมูลไม่สำเร็จหลังลองหลายครั้ง: ${error.message}`);
+  process.exit(1);
+}
 
 try {
-  await client.connect();
   const exists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [databaseName]);
   if (exists.rowCount === 0) {
     console.log(`[test-db] สร้างฐานข้อมูล "${databaseName}"`);
