@@ -21,7 +21,10 @@ describe('rowsToStudents — โครงสร้างไฟล์', () => {
   });
 
   it('มีแต่บรรทัดว่าง → ไม่พบหัวตาราง', () => {
-    const { errors } = rowsToStudents([['', ''], ['  ', '']]);
+    const { errors } = rowsToStudents([
+      ['', ''],
+      ['  ', ''],
+    ]);
     assert.equal(errors[0].message, 'ไม่พบหัวตารางในไฟล์');
   });
 
@@ -54,10 +57,19 @@ describe('rowsToStudents — โครงสร้างไฟล์', () => {
 
 describe('rowsToStudents — แปลงข้อมูล', () => {
   it('อ่านแถวถูกต้อง + lowercase อีเมล', () => {
-    const { students, errors } = rowsToStudents([HEADER, ['S001', 'สมชาย ใจดี', 'Somchai@Test.Local', 'Password123!']]);
+    const { students, errors } = rowsToStudents([
+      HEADER,
+      ['S001', 'สมชาย ใจดี', 'Somchai@Test.Local', 'Password123!'],
+    ]);
     assert.deepEqual(errors, []);
     assert.deepEqual(students, [
-      { rowNumber: 2, studentCode: 'S001', fullName: 'สมชาย ใจดี', email: 'somchai@test.local', password: 'Password123!' },
+      {
+        rowNumber: 2,
+        studentCode: 'S001',
+        fullName: 'สมชาย ใจดี',
+        email: 'somchai@test.local',
+        password: 'Password123!',
+      },
     ]);
   });
 
@@ -68,7 +80,10 @@ describe('rowsToStudents — แปลงข้อมูล', () => {
   });
 
   it('รับหัวตารางภาษาอังกฤษ', () => {
-    const { students } = rowsToStudents([['student code', 'full name', 'email', 'password'], ['S1', 'A', 'a@b.com', 'pw123456']]);
+    const { students } = rowsToStudents([
+      ['student code', 'full name', 'email', 'password'],
+      ['S1', 'A', 'a@b.com', 'pw123456'],
+    ]);
     assert.equal(students.length, 1);
     assert.equal(students[0].email, 'a@b.com');
   });
@@ -81,7 +96,12 @@ describe('rowsToStudents — แปลงข้อมูล', () => {
   });
 
   it('ข้ามบรรทัดว่างระหว่างข้อมูล', () => {
-    const { students } = rowsToStudents([HEADER, ['S1', 'A', 'a@b.com', ''], ['', '', '', ''], ['S2', 'B', 'b@b.com', '']]);
+    const { students } = rowsToStudents([
+      HEADER,
+      ['S1', 'A', 'a@b.com', ''],
+      ['', '', '', ''],
+      ['S2', 'B', 'b@b.com', ''],
+    ]);
     assert.equal(students.length, 2);
     assert.equal(students[1].rowNumber, 4);
   });
@@ -108,14 +128,22 @@ describe('rowsToStudents — ตรวจความถูกต้อง', () 
   }
 
   it('อีเมลซ้ำในไฟล์เดียวกัน', () => {
-    const { students, errors } = rowsToStudents([HEADER, ['S1', 'A', 'dup@b.com', ''], ['S2', 'B', 'dup@b.com', '']]);
+    const { students, errors } = rowsToStudents([
+      HEADER,
+      ['S1', 'A', 'dup@b.com', ''],
+      ['S2', 'B', 'dup@b.com', ''],
+    ]);
     assert.equal(students.length, 1);
     assert.equal(errors.length, 1);
     assert.match(errors[0].message, /ซ้ำกับแถวที่ 2/);
   });
 
   it('รหัสนักเรียนซ้ำในไฟล์เดียวกัน', () => {
-    const { students, errors } = rowsToStudents([HEADER, ['S1', 'A', 'a@b.com', ''], ['S1', 'B', 'b@b.com', '']]);
+    const { students, errors } = rowsToStudents([
+      HEADER,
+      ['S1', 'A', 'a@b.com', ''],
+      ['S1', 'B', 'b@b.com', ''],
+    ]);
     assert.equal(students.length, 1);
     assert.equal(errors.length, 1);
     assert.match(errors[0].message, /ซ้ำกับแถวที่ 2/);

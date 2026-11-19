@@ -53,10 +53,19 @@ let createdExamId = null;
 
 try {
   // --- login ---
-  const teacher = (await api('POST', '/api/auth/login', { body: { email: 'teacher@demo.local', password: 'Teacher123!', role: 'TEACHER' } })).data;
-  const student = (await api('POST', '/api/auth/login', { body: { email: 'student2@demo.local', password: 'Student123!', role: 'STUDENT' } })).data;
+  const teacher = (
+    await api('POST', '/api/auth/login', {
+      body: { email: 'teacher@demo.local', password: 'Teacher123!', role: 'TEACHER' },
+    })
+  ).data;
+  const student = (
+    await api('POST', '/api/auth/login', {
+      body: { email: 'student2@demo.local', password: 'Student123!', role: 'STUDENT' },
+    })
+  ).data;
   check('login ได้ทั้งครูและนักเรียน', Boolean(teacher?.accessToken && student?.accessToken));
-  if (!teacher?.accessToken || !student?.accessToken) throw new Error('login ไม่สำเร็จ — ตรวจว่ามีข้อมูล seed และรหัสผ่านถูกต้อง');
+  if (!teacher?.accessToken || !student?.accessToken)
+    throw new Error('login ไม่สำเร็จ — ตรวจว่ามีข้อมูล seed และรหัสผ่านถูกต้อง');
 
   // --- 1) handshake ---
   await new Promise((resolve) => {
@@ -87,8 +96,16 @@ try {
     waitFor(teacherSock, 'connected'),
     waitFor(studentSock, 'connected'),
   ]);
-  check('ครูได้ event connected + ห้อง user:<id>', teacherHello.room === `user:${teacher.user.id}` && teacherHello.role === 'TEACHER', teacherHello.room);
-  check('นักเรียนได้ event connected + ห้อง user:<id>', studentHello.room === `user:${student.user.id}` && studentHello.role === 'STUDENT', studentHello.room);
+  check(
+    'ครูได้ event connected + ห้อง user:<id>',
+    teacherHello.room === `user:${teacher.user.id}` && teacherHello.role === 'TEACHER',
+    teacherHello.room,
+  );
+  check(
+    'นักเรียนได้ event connected + ห้อง user:<id>',
+    studentHello.room === `user:${student.user.id}` && studentHello.role === 'STUDENT',
+    studentHello.room,
+  );
 
   // --- 3) ping/pong ---
   const pong = await new Promise((resolve) => {
@@ -101,11 +118,14 @@ try {
   check('client → server: ping ได้ ack pong', pong?.pong === true);
 
   // --- 4) exam:published ---
-  const classroomId = (await api('GET', '/api/classrooms', { token: teacher.accessToken })).data.classrooms[0].id;
-  const newExam = (await api('POST', '/api/exams', {
-    token: teacher.accessToken,
-    body: { title: EXAM_TITLE_FOR_TEST, timeLimitMinutes: 30 },
-  })).data.exam;
+  const classroomId = (await api('GET', '/api/classrooms', { token: teacher.accessToken })).data.classrooms[0]
+    .id;
+  const newExam = (
+    await api('POST', '/api/exams', {
+      token: teacher.accessToken,
+      body: { title: EXAM_TITLE_FOR_TEST, timeLimitMinutes: 30 },
+    })
+  ).data.exam;
   createdExamId = newExam.id;
 
   await api('POST', `/api/exams/${createdExamId}/questions`, {
@@ -120,7 +140,10 @@ try {
       ],
     },
   });
-  await api('POST', `/api/exams/${createdExamId}/assignments`, { token: teacher.accessToken, body: { classroomId } });
+  await api('POST', `/api/exams/${createdExamId}/assignments`, {
+    token: teacher.accessToken,
+    body: { classroomId },
+  });
 
   const publishedWait = waitFor(studentSock, 'exam:published');
   const publishRes = await api('POST', `/api/exams/${createdExamId}/publish`, { token: teacher.accessToken });
@@ -128,7 +151,9 @@ try {
   check('เปิดสอบ → นักเรียนได้ exam:published', publishRes.status === 200 && published.examId === createdExamId);
 
   // --- 5) submission:submitted ---
-  const seededExam = (await api('GET', '/api/exams', { token: teacher.accessToken })).data.exams.find((exam) => exam.status === 'PUBLISHED' && exam.title !== EXAM_TITLE_FOR_TEST);
+  const seededExam = (await api('GET', '/api/exams', { token: teacher.accessToken })).data.exams.find(
+    (exam) => exam.status === 'PUBLISHED' && exam.title !== EXAM_TITLE_FOR_TEST,
+  );
   const startRes = await api('POST', `/api/my/exams/${seededExam.id}/submissions`, {
     token: student.accessToken,
     body: { displayMode: 'SINGLE_PAGE' },
@@ -144,10 +169,15 @@ try {
     body: { displayMode: 'SINGLE_PAGE' },
   });
   const submitted = await submittedWait;
-  check('ส่งข้อสอบ → ครูได้ submission:submitted', submitRes.status === 200 && submitted.submissionId === submissionId);
+  check(
+    'ส่งข้อสอบ → ครูได้ submission:submitted',
+    submitRes.status === 200 && submitted.submissionId === submissionId,
+  );
 
   // --- 6) submission:graded ---
-  const detail = (await api('GET', `/api/grading/submissions/${submissionId}`, { token: teacher.accessToken })).data.submission;
+  const detail = (
+    await api('GET', `/api/grading/submissions/${submissionId}`, { token: teacher.accessToken })
+  ).data.submission;
   const subjective = detail.answers.filter((answer) => answer.type !== 'MULTIPLE_CHOICE');
   check('มีข้ออัตนัยให้ตรวจ', subjective.length > 0, `พบ ${subjective.length} ข้อ`);
 
@@ -168,11 +198,20 @@ try {
 
   // --- 7) result:released ---
   const releasedWait = waitFor(studentSock, 'result:released');
-  const releaseRes = await api('POST', `/api/grading/submissions/${submissionId}/release`, { token: teacher.accessToken });
+  const releaseRes = await api('POST', `/api/grading/submissions/${submissionId}/release`, {
+    token: teacher.accessToken,
+  });
   const released = await releasedWait;
   const releasedSubmission = releaseRes.data?.submission;
-  check('ปล่อยผล → นักเรียนได้ result:released', releaseRes.status === 200 && released.submissionId === submissionId);
-  check('หลังปล่อยผลสถานะเป็น RELEASED + มีเกรด', releasedSubmission?.status === 'RELEASED' && Boolean(releasedSubmission?.grade), `grade=${releasedSubmission?.grade}`);
+  check(
+    'ปล่อยผล → นักเรียนได้ result:released',
+    releaseRes.status === 200 && released.submissionId === submissionId,
+  );
+  check(
+    'หลังปล่อยผลสถานะเป็น RELEASED + มีเกรด',
+    releasedSubmission?.status === 'RELEASED' && Boolean(releasedSubmission?.grade),
+    `grade=${releasedSubmission?.grade}`,
+  );
 
   teacherSock.close();
   studentSock.close();

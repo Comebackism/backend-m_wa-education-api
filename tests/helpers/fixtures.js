@@ -93,13 +93,10 @@ export async function createExam(teacher, overrides = {}) {
 }
 
 /** เพิ่มข้อปรนัย 1 ข้อ (choices 4 ตัว, เฉลยตัวแรก) */
-export async function addChoiceQuestion(exam, {
-  prompt = 'ข้อใดถูกต้อง?',
-  points = 2,
-  order = 1,
-  correctIndex = 0,
-  labels = ['A', 'B', 'C', 'D'],
-} = {}) {
+export async function addChoiceQuestion(
+  exam,
+  { prompt = 'ข้อใดถูกต้อง?', points = 2, order = 1, correctIndex = 0, labels = ['A', 'B', 'C', 'D'] } = {},
+) {
   return prisma.question.create({
     data: {
       examId: exam.id,
@@ -122,7 +119,10 @@ export async function addChoiceQuestion(exam, {
 }
 
 /** เพิ่มข้ออัตนัย 1 ข้อ */
-export function addTextQuestion(exam, { type = 'SHORT_ANSWER', prompt = 'จงอธิบาย', points = 2, order = 2 } = {}) {
+export function addTextQuestion(
+  exam,
+  { type = 'SHORT_ANSWER', prompt = 'จงอธิบาย', points = 2, order = 2 } = {},
+) {
   return prisma.question.create({
     data: {
       examId: exam.id,
@@ -172,7 +172,11 @@ export function createSubmission(exam, student, overrides = {}) {
  * ชุดข้อสอบ "พร้อมสอบ" — ข้อปรนัย 1 ข้อ (2 คะแนน) + ข้ออัตนัย 1 ข้อ (2 คะแนน)
  * มอบหมายให้ classroom แล้ว ตั้งเกณฑ์ตัดเกรดมาตรฐาน และตั้งสถานะ PUBLISHED
  */
-export async function createPublishedExam(teacher, classroom, { status = 'PUBLISHED', withText = true } = {}) {
+export async function createPublishedExam(
+  teacher,
+  classroom,
+  { status = 'PUBLISHED', withText = true } = {},
+) {
   const exam = await createExam(teacher, { status: 'DRAFT', title: 'ข้อสอบพร้อมสอบ' });
   const mc = await addChoiceQuestion(exam, { points: 2, order: 1 });
   const text = withText ? await addTextQuestion(exam, { points: 2, order: 2 }) : null;

@@ -58,9 +58,18 @@ describe('rowsToQuestions — ปรนัย', () => {
     assert.equal(question.prompt, 'ข้อใดถูก?');
     assert.equal(question.explanation, 'อธิบาย');
     assert.equal(question.choices.length, 4);
-    assert.deepEqual(question.choices.map((choice) => choice.label), ['A', 'B', 'C', 'D']);
-    assert.deepEqual(question.choices.map((choice) => choice.order), [0, 1, 2, 3]);
-    assert.deepEqual(question.choices.filter((choice) => choice.isCorrect).map((choice) => choice.label), ['A']);
+    assert.deepEqual(
+      question.choices.map((choice) => choice.label),
+      ['A', 'B', 'C', 'D'],
+    );
+    assert.deepEqual(
+      question.choices.map((choice) => choice.order),
+      [0, 1, 2, 3],
+    );
+    assert.deepEqual(
+      question.choices.filter((choice) => choice.isCorrect).map((choice) => choice.label),
+      ['A'],
+    );
   });
 
   it('เฉลยเล็ก/ใหญ่ไม่สำคัญ', () => {
@@ -70,9 +79,15 @@ describe('rowsToQuestions — ปรนัย', () => {
 
   it('ตัวเลือกว่างถูกตัดออก (คงป้ายเดิมไว้)', () => {
     const { questions } = rowsToQuestions([HEADER, ['', 'x', '1', 'ก', '', 'ค', '', 'C', '', '']]);
-    assert.deepEqual(questions[0].choices.map((choice) => choice.label), ['A', 'C']);
+    assert.deepEqual(
+      questions[0].choices.map((choice) => choice.label),
+      ['A', 'C'],
+    );
     assert.equal(questions[0].choices.find((choice) => choice.isCorrect).label, 'C');
-    assert.deepEqual(questions[0].choices.map((choice) => choice.order), [0, 1]);
+    assert.deepEqual(
+      questions[0].choices.map((choice) => choice.order),
+      [0, 1],
+    );
   });
 
   it('ต้องมีตัวเลือกอย่างน้อย 2', () => {
@@ -94,7 +109,10 @@ describe('rowsToQuestions — ปรนัย', () => {
 
 describe('rowsToQuestions — อัตนัยและการเดาประเภท', () => {
   it('ระบุประเภทอัตนัยได้ (ไทย)', () => {
-    const { questions } = rowsToQuestions([HEADER, ['อัตนัย', 'จงอธิบาย', '3', '', '', '', '', '', 'แนวคำตอบ', '']]);
+    const { questions } = rowsToQuestions([
+      HEADER,
+      ['อัตนัย', 'จงอธิบาย', '3', '', '', '', '', '', 'แนวคำตอบ', ''],
+    ]);
     assert.equal(questions[0].type, 'SHORT_ANSWER');
     assert.equal(questions[0].referenceText, 'แนวคำตอบ');
     assert.equal(questions[0].choices, undefined);
@@ -135,8 +153,14 @@ describe('rowsToQuestions — โจทย์และคะแนน', () => {
   });
 
   it('คะแนนที่ไม่ใช่ตัวเลขหรือ ≤ 0 → error', () => {
-    assert.match(rowsToQuestions([HEADER, ['', 'x', 'abc', '', '', '', '', '', '', '']]).errors[0].message, /ตัวเลข/);
-    assert.match(rowsToQuestions([HEADER, ['', 'x', '0', '', '', '', '', '', '', '']]).errors[0].message, /มากกว่า 0/);
+    assert.match(
+      rowsToQuestions([HEADER, ['', 'x', 'abc', '', '', '', '', '', '', '']]).errors[0].message,
+      /ตัวเลข/,
+    );
+    assert.match(
+      rowsToQuestions([HEADER, ['', 'x', '0', '', '', '', '', '', '', '']]).errors[0].message,
+      /มากกว่า 0/,
+    );
   });
 
   it('รับคะแนนทศนิยมด้วยจุลภาค', () => {

@@ -56,9 +56,7 @@ export const openApiDocument = {
       'ลองใช้ได้ทันทีด้วยบัญชีตัวอย่าง: `teacher@demo.local` / `Teacher123!` (ดูบัญชีนักเรียนใน README)',
     ].join('\n'),
   },
-  servers: [
-    { url: 'http://localhost:4000', description: 'เครื่องพัฒนา (development)' },
-  ],
+  servers: [{ url: 'http://localhost:4000', description: 'เครื่องพัฒนา (development)' }],
   tags: [
     { name: 'Auth', description: 'สมัคร / เข้าสู่ระบบ / ต่ออายุ token' },
     { name: 'Courses', description: 'รายวิชา (ครู)' },
@@ -205,10 +203,20 @@ export const openApiDocument = {
         tags: ['Courses'],
         summary: 'รายวิชาทั้งหมดของครู',
         parameters: [
-          { name: 'q', in: 'query', required: false, description: 'ค้นหาจากรหัสหรือชื่อวิชา', schema: { type: 'string' } },
+          {
+            name: 'q',
+            in: 'query',
+            required: false,
+            description: 'ค้นหาจากรหัสหรือชื่อวิชา',
+            schema: { type: 'string' },
+          },
         ],
         responses: {
-          ...ok('รายการรายวิชา', { type: 'object', required: ['courses'], properties: { courses: { type: 'array', items: ref('Course') } } }),
+          ...ok('รายการรายวิชา', {
+            type: 'object',
+            required: ['courses'],
+            properties: { courses: { type: 'array', items: ref('Course') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -217,7 +225,11 @@ export const openApiDocument = {
         summary: 'สร้างรายวิชาใหม่',
         requestBody: body(ref('CourseInput')),
         responses: {
-          ...created('สร้างสำเร็จ', { type: 'object', required: ['course'], properties: { course: ref('Course') } }),
+          ...created('สร้างสำเร็จ', {
+            type: 'object',
+            required: ['course'],
+            properties: { course: ref('Course') },
+          }),
           ...pick(400, 401, 403, 409, 500),
         },
       },
@@ -228,7 +240,11 @@ export const openApiDocument = {
         tags: ['Courses'],
         summary: 'รายละเอียดรายวิชา (พร้อมห้องเรียน)',
         responses: {
-          ...ok('รายละเอียดรายวิชา', { type: 'object', required: ['course'], properties: { course: ref('Course') } }),
+          ...ok('รายละเอียดรายวิชา', {
+            type: 'object',
+            required: ['course'],
+            properties: { course: ref('Course') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -259,9 +275,17 @@ export const openApiDocument = {
       post: {
         tags: ['Classrooms'],
         summary: 'นักเรียนเข้าห้องเรียนด้วยรหัส (student)',
-        requestBody: body({ type: 'object', required: ['joinCode'], properties: { joinCode: { type: 'string', minLength: 4, maxLength: 20, example: 'MATH41' } } }),
+        requestBody: body({
+          type: 'object',
+          required: ['joinCode'],
+          properties: { joinCode: { type: 'string', minLength: 4, maxLength: 20, example: 'MATH41' } },
+        }),
         responses: {
-          ...created('เข้าห้องสำเร็จ', { type: 'object', required: ['classroom'], properties: { classroom: ref('Classroom') } }),
+          ...created('เข้าห้องสำเร็จ', {
+            type: 'object',
+            required: ['classroom'],
+            properties: { classroom: ref('Classroom') },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -274,7 +298,11 @@ export const openApiDocument = {
           { name: 'courseId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
-          ...ok('รายการห้องเรียน', { type: 'object', required: ['classrooms'], properties: { classrooms: { type: 'array', items: ref('Classroom') } } }),
+          ...ok('รายการห้องเรียน', {
+            type: 'object',
+            required: ['classrooms'],
+            properties: { classrooms: { type: 'array', items: ref('Classroom') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -284,7 +312,11 @@ export const openApiDocument = {
         description: 'ระบบสร้าง `joinCode` ให้อัตโนมัติ — `courseId` ไม่บังคับ (ห้องเรียนไม่ผูกวิชาก็ได้)',
         requestBody: body(ref('ClassroomInput')),
         responses: {
-          ...created('สร้างสำเร็จ', { type: 'object', required: ['classroom'], properties: { classroom: ref('Classroom') } }),
+          ...created('สร้างสำเร็จ', {
+            type: 'object',
+            required: ['classroom'],
+            properties: { classroom: ref('Classroom') },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -295,16 +327,28 @@ export const openApiDocument = {
         tags: ['Classrooms'],
         summary: 'รายละเอียดห้องเรียน + นักเรียน + ข้อสอบที่มอบหมาย (teacher)',
         responses: {
-          ...ok('รายละเอียดห้องเรียน', { type: 'object', required: ['classroom'], properties: { classroom: ref('ClassroomDetail') } }),
+          ...ok('รายละเอียดห้องเรียน', {
+            type: 'object',
+            required: ['classroom'],
+            properties: { classroom: ref('ClassroomDetail') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
       patch: {
         tags: ['Classrooms'],
         summary: 'แก้ไขชื่อห้องเรียน (teacher)',
-        requestBody: body({ type: 'object', required: ['name'], properties: { name: { type: 'string', maxLength: 200 } } }),
+        requestBody: body({
+          type: 'object',
+          required: ['name'],
+          properties: { name: { type: 'string', maxLength: 200 } },
+        }),
         responses: {
-          ...ok('แก้ไขสำเร็จ', { type: 'object', required: ['classroom'], properties: { classroom: ref('Classroom') } }),
+          ...ok('แก้ไขสำเร็จ', {
+            type: 'object',
+            required: ['classroom'],
+            properties: { classroom: ref('Classroom') },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -324,17 +368,28 @@ export const openApiDocument = {
         tags: ['Classrooms'],
         summary: 'รายชื่อนักเรียนในห้อง (teacher)',
         responses: {
-          ...ok('รายชื่อนักเรียน', { type: 'object', required: ['students'], properties: { students: { type: 'array', items: ref('StudentInClassroom') } } }),
+          ...ok('รายชื่อนักเรียน', {
+            type: 'object',
+            required: ['students'],
+            properties: { students: { type: 'array', items: ref('StudentInClassroom') } },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
       post: {
         tags: ['Classrooms'],
         summary: 'เพิ่มนักเรียนเข้าห้อง — ปุ่ม "+" (teacher)',
-        description: 'ถ้ามีบัญชีอยู่แล้วให้ส่ง `studentId` / `email` / `studentCode` · ถ้ายังไม่มีให้ส่ง `email` + `fullName` เพื่อสร้างบัญชีใหม่ (คืน `temporaryPassword`)',
+        description:
+          'ถ้ามีบัญชีอยู่แล้วให้ส่ง `studentId` / `email` / `studentCode` · ถ้ายังไม่มีให้ส่ง `email` + `fullName` เพื่อสร้างบัญชีใหม่ (คืน `temporaryPassword`)',
         requestBody: body(ref('AddStudentInput')),
         responses: {
-          ...created('เพิ่มนักเรียนสำเร็จ', { type: 'object', properties: { student: ref('User'), temporaryPassword: { type: 'string', nullable: true, description: 'มีค่าเฉพาะเมื่อสร้างบัญชีใหม่' } } }),
+          ...created('เพิ่มนักเรียนสำเร็จ', {
+            type: 'object',
+            properties: {
+              student: ref('User'),
+              temporaryPassword: { type: 'string', nullable: true, description: 'มีค่าเฉพาะเมื่อสร้างบัญชีใหม่' },
+            },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -366,7 +421,13 @@ export const openApiDocument = {
           'คนที่มีบัญชีอยู่แล้วจะถูกผูกเข้าห้องให้ (ถ้าอยู่ในห้องนี้แล้ว = ข้าม) · คนใหม่จะถูกสร้างบัญชีพร้อมรหัสผ่าน (คืน `temporaryPassword`) · ' +
           '`?dryRun=true` = ตรวจและพรีวิวโดยไม่บันทึก (HTTP 200)',
         parameters: [
-          { name: 'dryRun', in: 'query', required: false, description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก', schema: { type: 'string', enum: ['true', 'false'] } },
+          {
+            name: 'dryRun',
+            in: 'query',
+            required: false,
+            description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก',
+            schema: { type: 'string', enum: ['true', 'false'] },
+          },
         ],
         requestBody: {
           required: true,
@@ -376,7 +437,11 @@ export const openApiDocument = {
                 type: 'object',
                 required: ['file'],
                 properties: {
-                  file: { type: 'string', format: 'binary', description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)' },
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)',
+                  },
                 },
               },
             },
@@ -420,7 +485,13 @@ export const openApiDocument = {
         tags: ['Classrooms'],
         summary: 'เอานักเรียนออกจากห้อง (teacher)',
         responses: {
-          ...ok('เอาออกสำเร็จ', { type: 'object', properties: { classroomId: { type: 'string', format: 'uuid' }, studentId: { type: 'string', format: 'uuid' } } }),
+          ...ok('เอาออกสำเร็จ', {
+            type: 'object',
+            properties: {
+              classroomId: { type: 'string', format: 'uuid' },
+              studentId: { type: 'string', format: 'uuid' },
+            },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -434,10 +505,20 @@ export const openApiDocument = {
         tags: ['Students'],
         summary: 'รายชื่อนักเรียนทั้งหมดของครู (รวมทุกห้อง)',
         parameters: [
-          { name: 'q', in: 'query', required: false, description: 'ค้นหาจากชื่อ / อีเมล / รหัสนักเรียน', schema: { type: 'string' } },
+          {
+            name: 'q',
+            in: 'query',
+            required: false,
+            description: 'ค้นหาจากชื่อ / อีเมล / รหัสนักเรียน',
+            schema: { type: 'string' },
+          },
         ],
         responses: {
-          ...ok('รายชื่อนักเรียน', { type: 'object', required: ['students'], properties: { students: { type: 'array', items: ref('TeacherStudent') } } }),
+          ...ok('รายชื่อนักเรียน', {
+            type: 'object',
+            required: ['students'],
+            properties: { students: { type: 'array', items: ref('TeacherStudent') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -447,7 +528,10 @@ export const openApiDocument = {
         description: 'ถ้าแนบ `classroomId` จะเข้าห้องนั้นให้ทันที',
         requestBody: body(ref('CreateStudentInput')),
         responses: {
-          ...created('สร้างสำเร็จ', { type: 'object', properties: { student: ref('User'), temporaryPassword: { type: 'string', nullable: true } } }),
+          ...created('สร้างสำเร็จ', {
+            type: 'object',
+            properties: { student: ref('User'), temporaryPassword: { type: 'string', nullable: true } },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -456,7 +540,8 @@ export const openApiDocument = {
       get: {
         tags: ['Students'],
         summary: 'ดาวน์โหลดแม่แบบ CSV สำหรับนำเข้ารายชื่อนักเรียน (teacher)',
-        description: 'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM) · คอลัมน์: `รหัสนักเรียน`, `ชื่อ-นามสกุล`, `อีเมล`, `รหัสผ่าน` (รหัสนักเรียนและรหัสผ่านเว้นว่างได้)',
+        description:
+          'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM) · คอลัมน์: `รหัสนักเรียน`, `ชื่อ-นามสกุล`, `อีเมล`, `รหัสผ่าน` (รหัสนักเรียนและรหัสผ่านเว้นว่างได้)',
         responses: {
           200: {
             description: 'ไฟล์แม่แบบ CSV (Content-Disposition: attachment)',
@@ -489,7 +574,10 @@ export const openApiDocument = {
             properties: {
               id: { type: 'string', format: 'uuid' },
               removedFromClassrooms: { type: 'integer', description: 'จำนวนห้องเรียนที่นำนักเรียนออก' },
-              remainingEnrollments: { type: 'integer', description: 'จำนวนห้องเรียนที่นักเรียนยังอยู่ (รวมของครูคนอื่น)' },
+              remainingEnrollments: {
+                type: 'integer',
+                description: 'จำนวนห้องเรียนที่นักเรียนยังอยู่ (รวมของครูคนอื่น)',
+              },
             },
           }),
           ...pick(401, 403, 404, 500),
@@ -502,9 +590,19 @@ export const openApiDocument = {
         tags: ['Students'],
         summary: 'รีเซ็ตรหัสผ่านนักเรียน (teacher)',
         description: 'ถ้าไม่ส่ง `password` ระบบจะสุ่มให้ แล้วคืนค่ากลับมา',
-        requestBody: { required: false, content: json({ type: 'object', properties: { password: { type: 'string', minLength: 8, maxLength: 72 } } }) },
+        requestBody: {
+          required: false,
+          content: json({
+            type: 'object',
+            properties: { password: { type: 'string', minLength: 8, maxLength: 72 } },
+          }),
+        },
         responses: {
-          ...ok('รีเซ็ตสำเร็จ', { type: 'object', required: ['password'], properties: { password: { type: 'string' } } }),
+          ...ok('รีเซ็ตสำเร็จ', {
+            type: 'object',
+            required: ['password'],
+            properties: { password: { type: 'string' } },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -518,11 +616,20 @@ export const openApiDocument = {
         tags: ['Exams'],
         summary: 'ข้อสอบทั้งหมดของครู',
         parameters: [
-          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['DRAFT', 'PUBLISHED', 'CLOSED'] } },
+          {
+            name: 'status',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['DRAFT', 'PUBLISHED', 'CLOSED'] },
+          },
           { name: 'courseId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
-          ...ok('รายการข้อสอบ', { type: 'object', required: ['exams'], properties: { exams: { type: 'array', items: ref('Exam') } } }),
+          ...ok('รายการข้อสอบ', {
+            type: 'object',
+            required: ['exams'],
+            properties: { exams: { type: 'array', items: ref('Exam') } },
+          }),
           ...pick(400, 401, 403, 500),
         },
       },
@@ -541,7 +648,11 @@ export const openApiDocument = {
         tags: ['Exams'],
         summary: 'เกณฑ์ตัดเกรดมาตรฐาน A–F (ค่าเริ่มต้นของฟอร์ม)',
         responses: {
-          ...ok('เกณฑ์มาตรฐาน', { type: 'object', required: ['cutoffs'], properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } } }),
+          ...ok('เกณฑ์มาตรฐาน', {
+            type: 'object',
+            required: ['cutoffs'],
+            properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -550,7 +661,8 @@ export const openApiDocument = {
       get: {
         tags: ['Exams'],
         summary: 'IP ปัจจุบันของผู้เรียก (teacher) — ช่วยตั้งค่า IP restriction',
-        description: 'คืน `ip` (ตามที่ Express มองเห็น) + `normalizedIp` (รูปมาตรฐานที่เอาไปใส่ใน `allowedIpRanges` ได้เลย)',
+        description:
+          'คืน `ip` (ตามที่ Express มองเห็น) + `normalizedIp` (รูปมาตรฐานที่เอาไปใส่ใน `allowedIpRanges` ได้เลย)',
         responses: {
           ...ok('IP ของผู้เรียก', {
             type: 'object',
@@ -589,7 +701,11 @@ export const openApiDocument = {
         tags: ['Exams'],
         summary: 'รายละเอียดข้อสอบ (พร้อมข้อคำถาม + เฉลย + เกณฑ์ + การมอบหมาย)',
         responses: {
-          ...ok('รายละเอียดข้อสอบ', { type: 'object', required: ['exam'], properties: { exam: ref('ExamDetail') } }),
+          ...ok('รายละเอียดข้อสอบ', {
+            type: 'object',
+            required: ['exam'],
+            properties: { exam: ref('ExamDetail') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -606,7 +722,13 @@ export const openApiDocument = {
         tags: ['Exams'],
         summary: 'ลบข้อสอบ',
         parameters: [
-          { name: 'force', in: 'query', required: false, description: '`true` เพื่อลบแม้มีการส่งคำตอบแล้ว', schema: { type: 'string', enum: ['true', 'false'] } },
+          {
+            name: 'force',
+            in: 'query',
+            required: false,
+            description: '`true` เพื่อลบแม้มีการส่งคำตอบแล้ว',
+            schema: { type: 'string', enum: ['true', 'false'] },
+          },
         ],
         responses: {
           ...ok('ลบสำเร็จ', { type: 'object', properties: { id: { type: 'string', format: 'uuid' } } }),
@@ -619,7 +741,8 @@ export const openApiDocument = {
       post: {
         tags: ['Exams'],
         summary: 'เปิดให้สอบ (PUBLISHED)',
-        description: 'ต้องมีข้อคำถามอย่างน้อย 1 ข้อ และมอบหมายให้ห้องเรียนแล้วอย่างน้อย 1 ห้อง · ถ้ายังไม่ตั้งเกณฑ์ตัดเกรด ระบบใส่ A–F มาตรฐานให้',
+        description:
+          'ต้องมีข้อคำถามอย่างน้อย 1 ข้อ และมอบหมายให้ห้องเรียนแล้วอย่างน้อย 1 ห้อง · ถ้ายังไม่ตั้งเกณฑ์ตัดเกรด ระบบใส่ A–F มาตรฐานให้',
         responses: {
           ...ok('เปิดสอบสำเร็จ', { type: 'object', required: ['exam'], properties: { exam: ref('Exam') } }),
           ...pick(400, 401, 403, 404, 500),
@@ -642,10 +765,15 @@ export const openApiDocument = {
       post: {
         tags: ['Exams'],
         summary: 'เพิ่มข้อคำถาม',
-        description: 'ข้อปรนัยต้องมีตัวเลือก ≥ 2 และมีเฉลย (`isCorrect = true`) 1 ตัวเลือกเท่านั้น · คะแนนเต็มของข้อสอบจะถูกคำนวณใหม่ให้อัตโนมัติ',
+        description:
+          'ข้อปรนัยต้องมีตัวเลือก ≥ 2 และมีเฉลย (`isCorrect = true`) 1 ตัวเลือกเท่านั้น · คะแนนเต็มของข้อสอบจะถูกคำนวณใหม่ให้อัตโนมัติ',
         requestBody: body(ref('QuestionInput')),
         responses: {
-          ...created('เพิ่มสำเร็จ', { type: 'object', required: ['question'], properties: { question: ref('Question') } }),
+          ...created('เพิ่มสำเร็จ', {
+            type: 'object',
+            required: ['question'],
+            properties: { question: ref('Question') },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -662,12 +790,31 @@ export const openApiDocument = {
             items: {
               type: 'array',
               minItems: 1,
-              items: { type: 'object', required: ['id', 'order'], properties: { id: { type: 'string', format: 'uuid' }, order: { type: 'integer', minimum: 0 } } },
+              items: {
+                type: 'object',
+                required: ['id', 'order'],
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  order: { type: 'integer', minimum: 0 },
+                },
+              },
             },
           },
         }),
         responses: {
-          ...ok('จัดลำดับสำเร็จ', { type: 'object', required: ['questions'], properties: { questions: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, order: { type: 'integer' } } } } } }),
+          ...ok('จัดลำดับสำเร็จ', {
+            type: 'object',
+            required: ['questions'],
+            properties: {
+              questions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { id: { type: 'string', format: 'uuid' }, order: { type: 'integer' } },
+                },
+              },
+            },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -683,7 +830,13 @@ export const openApiDocument = {
           'ตรวจทุกแถวก่อนแบบ all-or-nothing: ถ้ามีแถวผิดจะไม่นำเข้าสักข้อ แล้วคืน `error.details` เป็น `[{ row, message }]` ให้แก้ · ' +
           'ทำได้เฉพาะชุดข้อสอบสถานะ `DRAFT` · `?dryRun=true` = ตรวจและพรีวิวโดยไม่บันทึก (HTTP 200)',
         parameters: [
-          { name: 'dryRun', in: 'query', required: false, description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก', schema: { type: 'string', enum: ['true', 'false'] } },
+          {
+            name: 'dryRun',
+            in: 'query',
+            required: false,
+            description: '`true` เพื่อตรวจไฟล์และพรีวิวโดยไม่บันทึก',
+            schema: { type: 'string', enum: ['true', 'false'] },
+          },
         ],
         requestBody: {
           required: true,
@@ -693,7 +846,11 @@ export const openApiDocument = {
                 type: 'object',
                 required: ['file'],
                 properties: {
-                  file: { type: 'string', format: 'binary', description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)' },
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'ไฟล์ .csv หรือ .xlsx (UTF-8 หรือ Excel ANSI/CP874 ก็ได้)',
+                  },
                 },
               },
             },
@@ -709,7 +866,19 @@ export const openApiDocument = {
               imported: { type: 'integer', description: 'จำนวนข้อที่สร้างจริง' },
               incomingPoints: { type: 'number', description: 'คะแนนรวมของข้อที่นำเข้า' },
               totalsPoints: { type: 'number', description: 'คะแนนเต็มใหม่ของข้อสอบ' },
-              questions: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, type: { type: 'string' }, prompt: { type: 'string' }, points: { type: 'number' }, order: { type: 'integer' } } } },
+              questions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    type: { type: 'string' },
+                    prompt: { type: 'string' },
+                    points: { type: 'number' },
+                    order: { type: 'integer' },
+                  },
+                },
+              },
             },
           }),
           ...ok('ผลการตรวจ (dryRun)', {
@@ -732,13 +901,26 @@ export const openApiDocument = {
                     type: { type: 'string' },
                     prompt: { type: 'string' },
                     points: { type: 'number' },
-                    choices: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, text: { type: 'string' }, isCorrect: { type: 'boolean' } } } },
+                    choices: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          label: { type: 'string' },
+                          text: { type: 'string' },
+                          isCorrect: { type: 'boolean' },
+                        },
+                      },
+                    },
                   },
                 },
               },
             },
           }),
-          400: { description: 'ไฟล์ไม่ถูกต้อง / มีแถวผิด (ดูรายละเอียดใน `error.details`) / ไม่ได้แนบไฟล์', content: json(ref('Error')) },
+          400: {
+            description: 'ไฟล์ไม่ถูกต้อง / มีแถวผิด (ดูรายละเอียดใน `error.details`) / ไม่ได้แนบไฟล์',
+            content: json(ref('Error')),
+          },
           ...pick(401, 403, 404, 409, 500),
         },
       },
@@ -751,7 +933,11 @@ export const openApiDocument = {
         description: 'ถ้าส่ง `choices` มาใหม่ ตัวเลือกเดิมทั้งหมดจะถูกแทนที่',
         requestBody: body(ref('QuestionInput')),
         responses: {
-          ...ok('แก้ไขสำเร็จ', { type: 'object', required: ['question'], properties: { question: ref('Question') } }),
+          ...ok('แก้ไขสำเร็จ', {
+            type: 'object',
+            required: ['question'],
+            properties: { question: ref('Question') },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -770,7 +956,11 @@ export const openApiDocument = {
         tags: ['Exams'],
         summary: 'ดูเกณฑ์ตัดเกรดของข้อสอบ',
         responses: {
-          ...ok('เกณฑ์ตัดเกรด', { type: 'object', required: ['cutoffs'], properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } } }),
+          ...ok('เกณฑ์ตัดเกรด', {
+            type: 'object',
+            required: ['cutoffs'],
+            properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -780,7 +970,11 @@ export const openApiDocument = {
         description: 'เกรดต้องไม่ซ้ำกัน · เมื่อเกณฑ์เปลี่ยน ระบบจะคิดเกรดของใบที่ตรวจแล้วใหม่ให้ทั้งหมด',
         requestBody: body(ref('CutoffsInput')),
         responses: {
-          ...ok('บันทึกสำเร็จ', { type: 'object', required: ['cutoffs'], properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } } }),
+          ...ok('บันทึกสำเร็จ', {
+            type: 'object',
+            required: ['cutoffs'],
+            properties: { cutoffs: { type: 'array', items: ref('GradeCutoff') } },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -792,7 +986,11 @@ export const openApiDocument = {
         summary: 'มอบหมายข้อสอบให้ห้องเรียน',
         requestBody: body(ref('AssignmentInput')),
         responses: {
-          ...created('มอบหมายสำเร็จ', { type: 'object', required: ['assignment'], properties: { assignment: ref('ExamAssignment') } }),
+          ...created('มอบหมายสำเร็จ', {
+            type: 'object',
+            required: ['assignment'],
+            properties: { assignment: ref('ExamAssignment') },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -818,10 +1016,19 @@ export const openApiDocument = {
         tags: ['Grading'],
         summary: 'รายการส่งข้อสอบของทั้งชุด',
         parameters: [
-          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'RELEASED'] } },
+          {
+            name: 'status',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'RELEASED'] },
+          },
         ],
         responses: {
-          ...ok('รายการการส่งข้อสอบ', { type: 'object', required: ['submissions'], properties: { submissions: { type: 'array', items: ref('SubmissionListItem') } } }),
+          ...ok('รายการการส่งข้อสอบ', {
+            type: 'object',
+            required: ['submissions'],
+            properties: { submissions: { type: 'array', items: ref('SubmissionListItem') } },
+          }),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -851,9 +1058,14 @@ export const openApiDocument = {
       get: {
         tags: ['Grading'],
         summary: 'สถิติภาพรวมของข้อสอบ (สำหรับ dashboard)',
-        description: 'คะแนนนับเฉพาะใบที่ตรวจครบ (GRADED/RELEASED) · `needsGrading` = ยังมีข้อที่ไม่ถูกตรวจ · `pendingRelease` = ตรวจครบแล้วรอปล่อยผล',
+        description:
+          'คะแนนนับเฉพาะใบที่ตรวจครบ (GRADED/RELEASED) · `needsGrading` = ยังมีข้อที่ไม่ถูกตรวจ · `pendingRelease` = ตรวจครบแล้วรอปล่อยผล',
         responses: {
-          ...ok('สถิติของข้อสอบ', { type: 'object', required: ['stats'], properties: { stats: ref('ExamStats') } }),
+          ...ok('สถิติของข้อสอบ', {
+            type: 'object',
+            required: ['stats'],
+            properties: { stats: ref('ExamStats') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -863,10 +1075,9 @@ export const openApiDocument = {
       get: {
         tags: ['Grading'],
         summary: 'ส่งออกผลคะแนนทั้งชุดเป็น CSV',
-        description: 'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM เปิดใน Excel ได้ทันที) · รองรับ `?status=` เพื่อกรองเฉพาะสถานะ',
-        parameters: [
-          { name: 'status', in: 'query', required: false, schema: ref('SubmissionStatus') },
-        ],
+        description:
+          'ตอบกลับเป็น `text/csv` (UTF-8 มี BOM เปิดใน Excel ได้ทันที) · รองรับ `?status=` เพื่อกรองเฉพาะสถานะ',
+        parameters: [{ name: 'status', in: 'query', required: false, schema: ref('SubmissionStatus') }],
         responses: {
           200: {
             description: 'ไฟล์ CSV ของผลคะแนน (Content-Disposition: attachment)',
@@ -882,7 +1093,11 @@ export const openApiDocument = {
         tags: ['Grading'],
         summary: 'รายละเอียดคำตอบทุกข้อ (สำหรับครูตรวจ)',
         responses: {
-          ...ok('รายละเอียดการส่งข้อสอบ', { type: 'object', required: ['submission'], properties: { submission: ref('GradingSubmission') } }),
+          ...ok('รายละเอียดการส่งข้อสอบ', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('GradingSubmission') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -892,10 +1107,15 @@ export const openApiDocument = {
       patch: {
         tags: ['Grading'],
         summary: 'ตรวจอัตนัย 1 ข้อ (ถูก/ไม่ถูก + หมายเหตุ)',
-        description: 'ใช้กับข้ออัตนัยเท่านั้น (ปรนัยตรวจอัตโนมัติแล้ว → `400`) · ให้คะแนนเกินคะแนนเต็มไม่ได้ → `400` · ตรวจครบจะเปลี่ยนสถานะเป็น `GRADED` และคิดเกรดทันที',
+        description:
+          'ใช้กับข้ออัตนัยเท่านั้น (ปรนัยตรวจอัตโนมัติแล้ว → `400`) · ให้คะแนนเกินคะแนนเต็มไม่ได้ → `400` · ตรวจครบจะเปลี่ยนสถานะเป็น `GRADED` และคิดเกรดทันที',
         requestBody: body(ref('GradeAnswerInput')),
         responses: {
-          ...ok('ตรวจสำเร็จ คืนใบตอบที่อัปเดตแล้ว', { type: 'object', required: ['submission'], properties: { submission: ref('GradingSubmission') } }),
+          ...ok('ตรวจสำเร็จ คืนใบตอบที่อัปเดตแล้ว', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('GradingSubmission') },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -907,7 +1127,11 @@ export const openApiDocument = {
         summary: 'ปุ่ม "ส่งผลไปให้นักเรียน" (รายคน)',
         description: 'ต้องตรวจครบทุกข้อก่อน ถ้ายังเหลือจะได้ `422`',
         responses: {
-          ...ok('ปล่อยผลสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('Submission') } }),
+          ...ok('ปล่อยผลสำเร็จ', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('Submission') },
+          }),
           ...pick(401, 403, 404, 409, 422, 500),
         },
       },
@@ -921,7 +1145,11 @@ export const openApiDocument = {
         tags: ['Student — My'],
         summary: 'ห้องเรียนที่นักเรียนคนนี้อยู่ (student)',
         responses: {
-          ...ok('รายการห้องเรียน', { type: 'object', required: ['classrooms'], properties: { classrooms: { type: 'array', items: ref('Classroom') } } }),
+          ...ok('รายการห้องเรียน', {
+            type: 'object',
+            required: ['classrooms'],
+            properties: { classrooms: { type: 'array', items: ref('Classroom') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -932,7 +1160,11 @@ export const openApiDocument = {
         summary: 'ข้อสอบที่ได้รับมอบหมาย (student)',
         description: 'โชว์คะแนน/เกรดของตัวเองเฉพาะเมื่อ `mySubmission.status = RELEASED`',
         responses: {
-          ...ok('รายการข้อสอบ', { type: 'object', required: ['exams'], properties: { exams: { type: 'array', items: ref('StudentExamListItem') } } }),
+          ...ok('รายการข้อสอบ', {
+            type: 'object',
+            required: ['exams'],
+            properties: { exams: { type: 'array', items: ref('StudentExamListItem') } },
+          }),
           ...pick(401, 403, 500),
         },
       },
@@ -942,9 +1174,14 @@ export const openApiDocument = {
       get: {
         tags: ['Student — My'],
         summary: 'รายละเอียดข้อสอบสำหรับนักเรียน (ไม่มีเฉลย)',
-        description: 'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้ · `mySubmission` ไม่มีคะแนน/เกรดจนกว่าจะ `RELEASED` · ถ้าข้อสอบตั้ง `allowedIpRanges` ไว้และ IP ผู้เรียกไม่อยู่ในรายการ จะได้ `403`',
+        description:
+          'ตัด `isCorrect` / `explanation` / `referenceText` / `points` ออกทั้งหมด พร้อมแนบคำตอบที่เคยบันทึกไว้ · `mySubmission` ไม่มีคะแนน/เกรดจนกว่าจะ `RELEASED` · ถ้าข้อสอบตั้ง `allowedIpRanges` ไว้และ IP ผู้เรียกไม่อยู่ในรายการ จะได้ `403`',
         responses: {
-          ...ok('กระดาษข้อสอบ', { type: 'object', required: ['exam'], properties: { exam: ref('StudentExam') } }),
+          ...ok('กระดาษข้อสอบ', {
+            type: 'object',
+            required: ['exam'],
+            properties: { exam: ref('StudentExam') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -954,10 +1191,18 @@ export const openApiDocument = {
       post: {
         tags: ['Student — My'],
         summary: 'เริ่มทำข้อสอบ (หรือทำใบเดิมต่อ)',
-        description: 'ถ้าเคยเริ่มไว้และยังไม่ส่ง จะคืนใบเดิม · กำหนด `expiresAt` จาก `timeLimitMinutes` ของข้อสอบ · ถ้า IP ผู้เรียกไม่อยู่ใน `allowedIpRanges` ของข้อสอบ จะได้ `403`',
-        requestBody: { required: false, content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }) },
+        description:
+          'ถ้าเคยเริ่มไว้และยังไม่ส่ง จะคืนใบเดิม · กำหนด `expiresAt` จาก `timeLimitMinutes` ของข้อสอบ · ถ้า IP ผู้เรียกไม่อยู่ใน `allowedIpRanges` ของข้อสอบ จะได้ `403`',
+        requestBody: {
+          required: false,
+          content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }),
+        },
         responses: {
-          ...created('เริ่มทำสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
+          ...created('เริ่มทำสำเร็จ', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('StudentSubmission') },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -969,7 +1214,11 @@ export const openApiDocument = {
         summary: 'สถานะการทำข้อสอบของตัวเอง (ไม่มีเฉลย/คะแนน)',
         description: 'คะแนน/เกรดจะถูกตัดออกจนกว่าครูจะปล่อยผล (`RELEASED`)',
         responses: {
-          ...ok('สถานะใบตอบ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
+          ...ok('สถานะใบตอบ', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('StudentSubmission') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -1006,7 +1255,17 @@ export const openApiDocument = {
             required: ['savedCount'],
             properties: {
               savedCount: { type: 'integer' },
-              answers: { type: 'array', items: { type: 'object', properties: { questionId: { type: 'string', format: 'uuid' }, choiceId: { type: 'string', nullable: true }, textAnswer: { type: 'string', nullable: true } } } },
+              answers: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    questionId: { type: 'string', format: 'uuid' },
+                    choiceId: { type: 'string', nullable: true },
+                    textAnswer: { type: 'string', nullable: true },
+                  },
+                },
+              },
             },
           }),
           ...pick(400, 401, 403, 404, 409, 500),
@@ -1018,10 +1277,18 @@ export const openApiDocument = {
       post: {
         tags: ['Student — My'],
         summary: 'ส่งข้อสอบ',
-        description: 'ปรนัยตรวจอัตโนมัติทันที แต่ **ยังไม่คืนคะแนน/เกรด** จนกว่าครูจะปล่อยผล (`RELEASED`) · สถานะเป็น `SUBMITTED` ("ส่งแล้ว รอตรวจ") · ส่งซ้ำจะได้ `409`',
-        requestBody: { required: false, content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }) },
+        description:
+          'ปรนัยตรวจอัตโนมัติทันที แต่ **ยังไม่คืนคะแนน/เกรด** จนกว่าครูจะปล่อยผล (`RELEASED`) · สถานะเป็น `SUBMITTED` ("ส่งแล้ว รอตรวจ") · ส่งซ้ำจะได้ `409`',
+        requestBody: {
+          required: false,
+          content: json({ type: 'object', properties: { displayMode: ref('DisplayMode') } }),
+        },
         responses: {
-          ...ok('ส่งสำเร็จ', { type: 'object', required: ['submission'], properties: { submission: ref('StudentSubmission') } }),
+          ...ok('ส่งสำเร็จ', {
+            type: 'object',
+            required: ['submission'],
+            properties: { submission: ref('StudentSubmission') },
+          }),
           ...pick(400, 401, 403, 404, 409, 500),
         },
       },
@@ -1035,7 +1302,11 @@ export const openApiDocument = {
           { name: 'examId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
-          ...ok('รายการผลสอบ', { type: 'object', required: ['results'], properties: { results: { type: 'array', items: ref('StudentResultListItem') } } }),
+          ...ok('รายการผลสอบ', {
+            type: 'object',
+            required: ['results'],
+            properties: { results: { type: 'array', items: ref('StudentResultListItem') } },
+          }),
           ...pick(400, 401, 403, 500),
         },
       },
@@ -1047,7 +1318,11 @@ export const openApiDocument = {
         summary: 'ผลสอบ + เฉลย + หมายเหตุครู',
         description: '**ต้องเป็น `RELEASED` เท่านั้น** ไม่งั้นได้ `403` · เห็นเฉพาะผลของตัวเอง',
         responses: {
-          ...ok('ผลสอบฉบับเต็ม', { type: 'object', required: ['result'], properties: { result: ref('StudentResult') } }),
+          ...ok('ผลสอบฉบับเต็ม', {
+            type: 'object',
+            required: ['result'],
+            properties: { result: ref('StudentResult') },
+          }),
           ...pick(401, 403, 404, 500),
         },
       },
@@ -1176,7 +1451,12 @@ export const openApiDocument = {
             nullable: true,
             properties: { classrooms: { type: 'integer' }, exams: { type: 'integer' } },
           },
-          classrooms: { type: 'array', items: ref('Classroom'), nullable: true, description: 'มีเฉพาะในรายละเอียดรายวิชา' },
+          classrooms: {
+            type: 'array',
+            items: ref('Classroom'),
+            nullable: true,
+            description: 'มีเฉพาะในรายละเอียดรายวิชา',
+          },
         },
       },
       CourseInput: {
@@ -1199,7 +1479,11 @@ export const openApiDocument = {
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
           course: ref('CourseBrief'),
-          _count: { type: 'object', nullable: true, properties: { enrollments: { type: 'integer' }, examAssignments: { type: 'integer' } } },
+          _count: {
+            type: 'object',
+            nullable: true,
+            properties: { enrollments: { type: 'integer' }, examAssignments: { type: 'integer' } },
+          },
         },
       },
       ClassroomDetail: {
@@ -1216,7 +1500,12 @@ export const openApiDocument = {
       },
       CourseBrief: {
         type: 'object',
-        properties: { id: { type: 'string', format: 'uuid' }, code: { type: 'string' }, title: { type: 'string' }, description: { type: 'string', nullable: true } },
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          code: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+        },
       },
       ClassroomInput: {
         type: 'object',
@@ -1232,7 +1521,10 @@ export const openApiDocument = {
         },
       },
       StudentInClassroom: {
-        allOf: [ref('User'), { type: 'object', properties: { enrolledAt: { type: 'string', format: 'date-time' } } }],
+        allOf: [
+          ref('User'),
+          { type: 'object', properties: { enrolledAt: { type: 'string', format: 'date-time' } } },
+        ],
       },
       TeacherStudent: {
         allOf: [
@@ -1240,20 +1532,32 @@ export const openApiDocument = {
           {
             type: 'object',
             properties: {
-              classrooms: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } } } },
+              classrooms: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } },
+                },
+              },
             },
           },
         ],
       },
       AddStudentInput: {
         type: 'object',
-        description: 'ต้องระบุอย่างน้อย 1 อย่าง: `studentId`, `email` หรือ `studentCode` · ถ้ายังไม่มีบัญชี ต้องมี `email` + `fullName`',
+        description:
+          'ต้องระบุอย่างน้อย 1 อย่าง: `studentId`, `email` หรือ `studentCode` · ถ้ายังไม่มีบัญชี ต้องมี `email` + `fullName`',
         properties: {
           studentId: { type: 'string', format: 'uuid' },
           email: { type: 'string', format: 'email' },
           studentCode: { type: 'string', maxLength: 50 },
           fullName: { type: 'string', maxLength: 200 },
-          password: { type: 'string', minLength: 8, maxLength: 72, description: 'ไม่ส่ง = ใช้ studentCode หรือสุ่มให้' },
+          password: {
+            type: 'string',
+            minLength: 8,
+            maxLength: 72,
+            description: 'ไม่ส่ง = ใช้ studentCode หรือสุ่มให้',
+          },
         },
       },
       CreateStudentInput: {
@@ -1323,7 +1627,12 @@ export const openApiDocument = {
           order: { type: 'integer', minimum: 0 },
           referenceText: { type: 'string', maxLength: 20000, nullable: true },
           explanation: { type: 'string', maxLength: 20000, nullable: true },
-          choices: { type: 'array', maxItems: 10, items: ref('ChoiceInput'), description: 'บังคับเมื่อ type = MULTIPLE_CHOICE (≥ 2 ตัวเลือก, เฉลย 1 ตัว)' },
+          choices: {
+            type: 'array',
+            maxItems: 10,
+            items: ref('ChoiceInput'),
+            description: 'บังคับเมื่อ type = MULTIPLE_CHOICE (≥ 2 ตัวเลือก, เฉลย 1 ตัว)',
+          },
         },
       },
       GradeCutoff: {
@@ -1343,10 +1652,23 @@ export const openApiDocument = {
             type: 'array',
             minItems: 1,
             maxItems: 20,
-            items: { type: 'object', required: ['grade', 'minPercent'], properties: { grade: { type: 'string', maxLength: 5 }, minPercent: { type: 'number', minimum: 0, maximum: 100 } } },
+            items: {
+              type: 'object',
+              required: ['grade', 'minPercent'],
+              properties: {
+                grade: { type: 'string', maxLength: 5 },
+                minPercent: { type: 'number', minimum: 0, maximum: 100 },
+              },
+            },
           },
         },
-        example: { cutoffs: [{ grade: 'A', minPercent: 80 }, { grade: 'B', minPercent: 70 }, { grade: 'F', minPercent: 0 }] },
+        example: {
+          cutoffs: [
+            { grade: 'A', minPercent: 80 },
+            { grade: 'B', minPercent: 70 },
+            { grade: 'F', minPercent: 0 },
+          ],
+        },
       },
       Exam: {
         type: 'object',
@@ -1371,7 +1693,15 @@ export const openApiDocument = {
           course: ref('CourseBrief'),
           questions: { type: 'array', items: ref('Question'), nullable: true },
           cutoffs: { type: 'array', items: ref('GradeCutoff'), nullable: true },
-          _count: { type: 'object', nullable: true, properties: { questions: { type: 'integer' }, submissions: { type: 'integer' }, assignments: { type: 'integer' } } },
+          _count: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              questions: { type: 'integer' },
+              submissions: { type: 'integer' },
+              assignments: { type: 'integer' },
+            },
+          },
         },
       },
       ExamDetail: {
@@ -1381,7 +1711,13 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               assignments: { type: 'array', items: ref('ExamAssignment') },
-              submissionStats: { type: 'array', items: { type: 'object', properties: { status: ref('SubmissionStatus'), count: { type: 'integer' } } } },
+              submissionStats: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { status: ref('SubmissionStatus'), count: { type: 'integer' } },
+                },
+              },
             },
           },
         ],
@@ -1398,12 +1734,19 @@ export const openApiDocument = {
             type: 'array',
             maxItems: 50,
             items: { type: 'string', maxLength: 64 },
-            description: 'จำกัด IP ที่เข้าทำข้อสอบได้ — รับ IPv4/IPv6 และ CIDR เช่น `203.0.113.0/24`, `2001:db8::/32` (ส่ง `[]` = ไม่จำกัด)',
+            description:
+              'จำกัด IP ที่เข้าทำข้อสอบได้ — รับ IPv4/IPv6 และ CIDR เช่น `203.0.113.0/24`, `2001:db8::/32` (ส่ง `[]` = ไม่จำกัด)',
           },
           defaultDisplayMode: ref('DisplayMode'),
           questionsPerPage: { type: 'integer', minimum: 1, maximum: 100 },
         },
-        example: { title: 'สอบเก็บคะแนน บทที่ 1', timeLimitMinutes: 60, defaultDisplayMode: 'PAGINATED', questionsPerPage: 5, allowedIpRanges: ['203.0.113.0/24'] },
+        example: {
+          title: 'สอบเก็บคะแนน บทที่ 1',
+          timeLimitMinutes: 60,
+          defaultDisplayMode: 'PAGINATED',
+          questionsPerPage: 5,
+          allowedIpRanges: ['203.0.113.0/24'],
+        },
       },
       ExamAssignment: {
         type: 'object',
@@ -1414,7 +1757,15 @@ export const openApiDocument = {
           availableFrom: { type: 'string', format: 'date-time', nullable: true },
           availableTo: { type: 'string', format: 'date-time', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
-          classroom: { type: 'object', nullable: true, properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' }, joinCode: { type: 'string' } } },
+          classroom: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+              joinCode: { type: 'string' },
+            },
+          },
         },
       },
       AssignmentInput: {
@@ -1476,14 +1827,29 @@ export const openApiDocument = {
           submittedAt: { type: 'string', format: 'date-time', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
-          answers: { type: 'array', nullable: true, items: ref('StudentAnswer'), description: 'มีเฉพาะบาง endpoint' },
+          answers: {
+            type: 'array',
+            nullable: true,
+            items: ref('StudentAnswer'),
+            description: 'มีเฉพาะบาง endpoint',
+          },
           autoScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
           manualScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
           totalScore: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
           percent: { type: 'number', description: 'มีเฉพาะเมื่อ RELEASED' },
           grade: { type: 'string', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
-          gradedAt: { type: 'string', format: 'date-time', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
-          releasedAt: { type: 'string', format: 'date-time', nullable: true, description: 'มีเฉพาะเมื่อ RELEASED' },
+          gradedAt: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description: 'มีเฉพาะเมื่อ RELEASED',
+          },
+          releasedAt: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description: 'มีเฉพาะเมื่อ RELEASED',
+          },
         },
       },
       StudentAnswer: {
@@ -1518,7 +1884,14 @@ export const openApiDocument = {
             type: 'object',
             properties: {
               student: ref('User'),
-              exam: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, title: { type: 'string' }, totalsPoints: { type: 'number' } } },
+              exam: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  title: { type: 'string' },
+                  totalsPoints: { type: 'number' },
+                },
+              },
               ungradedCount: { type: 'integer', description: 'จำนวนข้อที่ยังไม่ได้ตรวจ' },
               answers: { type: 'array', items: ref('GradingAnswer') },
             },
@@ -1551,7 +1924,12 @@ export const openApiDocument = {
         properties: {
           isCorrect: { type: 'boolean', description: 'true = ถูก, false = ไม่ถูก' },
           awardedPoints: { type: 'number', minimum: 0, description: 'ไม่ส่ง = เต็มเมื่อถูก / 0 เมื่อผิด' },
-          graderComment: { type: 'string', maxLength: 2000, nullable: true, description: 'อธิบายว่าผิดหรือถูกเพราะอะไร' },
+          graderComment: {
+            type: 'string',
+            maxLength: 2000,
+            nullable: true,
+            description: 'อธิบายว่าผิดหรือถูกเพราะอะไร',
+          },
         },
         example: { isCorrect: false, awardedPoints: 1, graderComment: 'ขั้นตอนถูกแต่คำนวณตอนท้ายคลาดเคลื่อน' },
       },
@@ -1614,7 +1992,11 @@ export const openApiDocument = {
                 answeredCount: { type: 'integer', description: 'จำนวนใบที่ตอบข้อนี้' },
                 gradedCount: { type: 'integer', description: 'จำนวนใบที่ข้อนี้ถูกตรวจแล้ว' },
                 correctCount: { type: 'integer' },
-                correctRate: { type: 'number', nullable: true, description: 'เปอร์เซ็นต์ตอบถูก (null = ยังไม่มีใครถูกตรวจ)' },
+                correctRate: {
+                  type: 'number',
+                  nullable: true,
+                  description: 'เปอร์เซ็นต์ตอบถูก (null = ยังไม่มีใครถูกตรวจ)',
+                },
                 averageAwardedPoints: { type: 'number', nullable: true },
               },
             },
@@ -1672,8 +2054,27 @@ export const openApiDocument = {
                 type: ref('QuestionType'),
                 prompt: { type: 'string' },
                 order: { type: 'integer' },
-                choices: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, label: { type: 'string' }, text: { type: 'string' }, order: { type: 'integer' } } } },
-                myAnswer: { nullable: true, type: 'object', properties: { questionId: { type: 'string', format: 'uuid' }, choiceId: { type: 'string', nullable: true }, textAnswer: { type: 'string', nullable: true } } },
+                choices: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string', format: 'uuid' },
+                      label: { type: 'string' },
+                      text: { type: 'string' },
+                      order: { type: 'integer' },
+                    },
+                  },
+                },
+                myAnswer: {
+                  nullable: true,
+                  type: 'object',
+                  properties: {
+                    questionId: { type: 'string', format: 'uuid' },
+                    choiceId: { type: 'string', nullable: true },
+                    textAnswer: { type: 'string', nullable: true },
+                  },
+                },
               },
             },
           },
@@ -1684,7 +2085,15 @@ export const openApiDocument = {
         type: 'object',
         properties: {
           submissionId: { type: 'string', format: 'uuid' },
-          exam: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, title: { type: 'string' }, totalsPoints: { type: 'number' }, course: ref('CourseBrief') } },
+          exam: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              title: { type: 'string' },
+              totalsPoints: { type: 'number' },
+              course: ref('CourseBrief'),
+            },
+          },
           status: ref('SubmissionStatus'),
           submittedAt: { type: 'string', format: 'date-time', nullable: true },
           pendingTeacherAction: { type: 'boolean', description: 'true = ครูยังไม่ปล่อยผล' },
@@ -1735,8 +2144,25 @@ export const openApiDocument = {
           points: { type: 'number' },
           explanation: { type: 'string', nullable: true },
           referenceText: { type: 'string', nullable: true },
-          choices: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, label: { type: 'string' }, text: { type: 'string' }, isCorrect: { type: 'boolean' } } } },
-          myAnswer: { type: 'object', properties: { choiceId: { type: 'string', nullable: true }, textAnswer: { type: 'string', nullable: true } } },
+          choices: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                label: { type: 'string' },
+                text: { type: 'string' },
+                isCorrect: { type: 'boolean' },
+              },
+            },
+          },
+          myAnswer: {
+            type: 'object',
+            properties: {
+              choiceId: { type: 'string', nullable: true },
+              textAnswer: { type: 'string', nullable: true },
+            },
+          },
           result: {
             type: 'object',
             properties: {

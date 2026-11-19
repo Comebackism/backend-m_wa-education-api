@@ -63,7 +63,8 @@ describe('validate middleware', () => {
 
   it('query ผิด → field ขึ้นต้นด้วย "query."', () => {
     assert.throws(
-      () => validate({ query: z.object({ n: z.coerce.number() }) })({ query: { n: 'x' } }, makeRes(), mock.fn()),
+      () =>
+        validate({ query: z.object({ n: z.coerce.number() }) })({ query: { n: 'x' } }, makeRes(), mock.fn()),
       (error) => {
         assert.equal(error.details[0].field, 'query.n');
         return true;
@@ -144,7 +145,9 @@ describe('errorHandler', () => {
     const res = makeRes();
     errorHandler(ApiError.badRequest('ข้อมูลไม่ถูกต้อง', [{ field: 'x' }]), {}, res, mock.fn());
     assert.equal(res.statusCode, 400);
-    assert.deepEqual(res.body, { error: { code: 'BAD_REQUEST', message: 'ข้อมูลไม่ถูกต้อง', details: [{ field: 'x' }] } });
+    assert.deepEqual(res.body, {
+      error: { code: 'BAD_REQUEST', message: 'ข้อมูลไม่ถูกต้อง', details: [{ field: 'x' }] },
+    });
   });
 
   it('ApiError ที่ไม่มี details → details เป็น undefined', () => {

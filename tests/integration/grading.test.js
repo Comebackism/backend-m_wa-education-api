@@ -26,12 +26,18 @@ async function setupSubmitted() {
   const { exam, mc, text } = await createPublishedExam(teacher, classroom);
 
   const started = await submissionService.startSubmission(exam.id, student.id);
-  await submissionService.saveAnswers(started.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+  await submissionService.saveAnswers(started.id, student.id, [
+    { questionId: mc.id, choiceId: mc.choices[0].id },
+  ]);
   await submissionService.submitSubmission(started.id, student.id);
 
   const submission = await prisma.submission.findUnique({ where: { id: started.id } });
-  const textAnswer = await prisma.answer.findFirst({ where: { submissionId: submission.id, questionId: text.id } });
-  const mcAnswer = await prisma.answer.findFirst({ where: { submissionId: submission.id, questionId: mc.id } });
+  const textAnswer = await prisma.answer.findFirst({
+    where: { submissionId: submission.id, questionId: text.id },
+  });
+  const mcAnswer = await prisma.answer.findFirst({
+    where: { submissionId: submission.id, questionId: mc.id },
+  });
   return { teacher, classroom, student, exam, mc, text, submission, textAnswer, mcAnswer };
 }
 
@@ -56,8 +62,14 @@ describe('listExamSubmissions', () => {
 
   it('กรองตามสถานะได้', async () => {
     const { teacher, exam } = await setupSubmitted();
-    assert.equal((await gradingService.listExamSubmissions(teacher, exam.id, { status: 'SUBMITTED' })).length, 1);
-    assert.equal((await gradingService.listExamSubmissions(teacher, exam.id, { status: 'RELEASED' })).length, 0);
+    assert.equal(
+      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'SUBMITTED' })).length,
+      1,
+    );
+    assert.equal(
+      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'RELEASED' })).length,
+      0,
+    );
   });
 
   it('ครูคนอื่นดูไม่ได้ → 403', async () => {
@@ -93,7 +105,11 @@ describe('getSubmissionDetail', () => {
 describe('gradeAnswer', () => {
   it('ตรวจอัตนัยถูก → ได้คะแนนเต็ม และสถานะเป็น GRADED', async () => {
     const { teacher, submission, textAnswer } = await setupSubmitted();
-    const detail = await gradingService.gradeAnswer(teacher, textAnswer.id, { isCorrect: true, awardedPoints: 2, graderComment: 'อธิบายครบ' });
+    const detail = await gradingService.gradeAnswer(teacher, textAnswer.id, {
+      isCorrect: true,
+      awardedPoints: 2,
+      graderComment: 'อธิบายครบ',
+    });
 
     assert.equal(detail.status, 'GRADED');
     assert.equal(Number(detail.autoScore), 2);
@@ -125,7 +141,11 @@ describe('gradeAnswer', () => {
 
   it('ตรวจข้อปรนัย → 400', async () => {
     const { teacher, mcAnswer } = await setupSubmitted();
-    await expectApiError(gradingService.gradeAnswer(teacher, mcAnswer.id, { isCorrect: false }), 400, /ตรวจอัตโนมัติ/);
+    await expectApiError(
+      gradingService.gradeAnswer(teacher, mcAnswer.id, { isCorrect: false }),
+      400,
+      /ตรวจอัตโนมัติ/,
+    );
   });
 
   it('นักเรียนยังไม่ส่ง → 409', async () => {
@@ -139,12 +159,19 @@ describe('gradeAnswer', () => {
       data: { submissionId: started.id, questionId: text.id, textAnswer: 'ร่าง' },
     });
 
-    await expectApiError(gradingService.gradeAnswer(teacher, textAnswer.id, { isCorrect: true }), 409, /ยังไม่ส่ง/);
+    await expectApiError(
+      gradingService.gradeAnswer(teacher, textAnswer.id, { isCorrect: true }),
+      409,
+      /ยังไม่ส่ง/,
+    );
   });
 
   it('ครูคนอื่นตรวจไม่ได้ → 403', async () => {
     const { textAnswer } = await setupSubmitted();
-    await expectApiError(gradingService.gradeAnswer(await createTeacher(), textAnswer.id, { isCorrect: true }), 403);
+    await expectApiError(
+      gradingService.gradeAnswer(await createTeacher(), textAnswer.id, { isCorrect: true }),
+      403,
+    );
   });
 
   it('ไม่พบคำตอบ → 404', async () => {
@@ -192,9 +219,13 @@ describe('releaseExamResults', () => {
     const a = await createStudent();
     await enroll(a, classroom);
     const startedA = await submissionService.startSubmission(exam.id, a.id);
-    await submissionService.saveAnswers(startedA.id, a.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+    await submissionService.saveAnswers(startedA.id, a.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]);
     await submissionService.submitSubmission(startedA.id, a.id);
-    const textAnswerA = await prisma.answer.findFirst({ where: { submissionId: startedA.id, questionId: text.id } });
+    const textAnswerA = await prisma.answer.findFirst({
+      where: { submissionId: startedA.id, questionId: text.id },
+    });
     await gradingService.gradeAnswer(teacher, textAnswerA.id, { isCorrect: true, awardedPoints: 2 });
 
     // นักเรียน B ยังไม่ได้ตรวจอัตนัย
@@ -237,7 +268,10 @@ describe('getExamStats', () => {
 describe('exportExamResultsCsv', () => {
   it('สร้าง CSV พร้อมหัวตารางและข้อมูลนักเรียน', async () => {
     const { teacher, exam, submission } = await setupSubmitted();
-    await prisma.submission.update({ where: { id: submission.id }, data: { status: 'RELEASED', releasedAt: new Date() } });
+    await prisma.submission.update({
+      where: { id: submission.id },
+      data: { status: 'RELEASED', releasedAt: new Date() },
+    });
 
     const result = await gradingService.exportExamResultsCsv(teacher, exam.id);
     assert.equal(result.filename, `exam-results-${exam.id}.csv`);

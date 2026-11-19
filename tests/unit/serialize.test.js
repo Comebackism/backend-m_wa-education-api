@@ -122,7 +122,11 @@ describe('serializeStudentSubmission', () => {
   });
 
   it('สถานะ RELEASED → เห็นคะแนนและเกรด', () => {
-    const result = serializeStudentSubmission({ ...base, status: 'RELEASED', releasedAt: new Date('2026-01-03T00:00:00Z') });
+    const result = serializeStudentSubmission({
+      ...base,
+      status: 'RELEASED',
+      releasedAt: new Date('2026-01-03T00:00:00Z'),
+    });
     assert.equal(result.totalScore, 2);
     assert.equal(result.percent, 20);
     assert.equal(result.grade, 'F');

@@ -7,7 +7,11 @@ import assert from 'node:assert/strict';
  */
 export async function expectApiError(promise, statusCode, messagePattern, detailsPattern) {
   await assert.rejects(promise, (error) => {
-    assert.equal(error.statusCode, statusCode, `คาด statusCode ${statusCode} แต่ได้ ${error.statusCode} (${error.message})`);
+    assert.equal(
+      error.statusCode,
+      statusCode,
+      `คาด statusCode ${statusCode} แต่ได้ ${error.statusCode} (${error.message})`,
+    );
     if (messagePattern) assert.match(error.message, messagePattern);
     if (detailsPattern) {
       const text = (error.details ?? [])

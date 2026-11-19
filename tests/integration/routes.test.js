@@ -46,7 +46,11 @@ async function teacherToken() {
 async function studentToken(classroom, overrides = {}) {
   const student = await createStudent({ password: PASSWORD, ...overrides });
   if (classroom) await enroll(student, classroom);
-  const res = await server.client.post('/api/auth/login', { email: student.email, password: PASSWORD, role: 'STUDENT' });
+  const res = await server.client.post('/api/auth/login', {
+    email: student.email,
+    password: PASSWORD,
+    role: 'STUDENT',
+  });
   assert.equal(res.status, 200);
   return { token: res.data.accessToken, student };
 }
@@ -57,9 +61,13 @@ async function setupSubmitted(teacherId, classroom) {
   const student = await createStudent();
   await enroll(student, classroom);
   const started = await submissionService.startSubmission(exam.id, student.id);
-  await submissionService.saveAnswers(started.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+  await submissionService.saveAnswers(started.id, student.id, [
+    { questionId: mc.id, choiceId: mc.choices[0].id },
+  ]);
   await submissionService.submitSubmission(started.id, student.id);
-  const textAnswer = await prisma.answer.findFirst({ where: { submissionId: started.id, questionId: text.id } });
+  const textAnswer = await prisma.answer.findFirst({
+    where: { submissionId: started.id, questionId: text.id },
+  });
   return { exam, mc, text, student, submissionId: started.id, textAnswerId: textAnswer.id };
 }
 
@@ -120,7 +128,9 @@ describe('classroom routes', () => {
     assert.equal(csv.status, 200);
     assert.match(csv.headers.get('content-type'), /text\/csv/);
 
-    const removedStudent = await server.client.del(`/api/classrooms/${classroomId}/students/${studentId}`, { token });
+    const removedStudent = await server.client.del(`/api/classrooms/${classroomId}/students/${studentId}`, {
+      token,
+    });
     assert.equal(removedStudent.status, 200);
 
     const removed = await server.client.del(`/api/classrooms/${classroomId}`, { token });
@@ -130,7 +140,11 @@ describe('classroom routes', () => {
   it('เพิ่มนักเรียนโดยไม่มีตัวระบุ → 400', async () => {
     const { token } = await teacherToken();
     const classroom = await server.client.post('/api/classrooms', { name: 'ม.2/1' }, { token });
-    const res = await server.client.post(`/api/classrooms/${classroom.data.classroom.id}/students`, {}, { token });
+    const res = await server.client.post(
+      `/api/classrooms/${classroom.data.classroom.id}/students`,
+      {},
+      { token },
+    );
     assert.equal(res.status, 400);
   });
 
@@ -138,9 +152,17 @@ describe('classroom routes', () => {
     const teacher = await createTeacher();
     await createClassroom(teacher, { joinCode: 'HELLO1' });
     const student = await createStudent({ password: PASSWORD });
-    const login = await server.client.post('/api/auth/login', { email: student.email, password: PASSWORD, role: 'STUDENT' });
+    const login = await server.client.post('/api/auth/login', {
+      email: student.email,
+      password: PASSWORD,
+      role: 'STUDENT',
+    });
 
-    const join = await server.client.post('/api/classrooms/join', { joinCode: 'HELLO1' }, { token: login.data.accessToken });
+    const join = await server.client.post(
+      '/api/classrooms/join',
+      { joinCode: 'HELLO1' },
+      { token: login.data.accessToken },
+    );
     assert.equal(join.status, 201);
     assert.equal(join.data.classroom.joinCode, 'HELLO1');
   });
@@ -180,7 +202,11 @@ describe('student routes', () => {
 describe('exam routes', () => {
   async function makeExam(token) {
     const classroom = await server.client.post('/api/classrooms', { name: 'ม.4/1' }, { token });
-    const created = await server.client.post('/api/exams', { title: 'ข้อสอบ', timeLimitMinutes: 30 }, { token });
+    const created = await server.client.post(
+      '/api/exams',
+      { title: 'ข้อสอบ', timeLimitMinutes: 30 },
+      { token },
+    );
     return { classroomId: classroom.data.classroom.id, examId: created.data.exam.id };
   }
 
@@ -225,7 +251,12 @@ describe('exam routes', () => {
 
     const reordered = await server.client.put(
       `/api/exams/${examId}/questions/order`,
-      { items: [{ id: first.data.question.id, order: 2 }, { id: second.data.question.id, order: 1 }] },
+      {
+        items: [
+          { id: first.data.question.id, order: 2 },
+          { id: second.data.question.id, order: 1 },
+        ],
+      },
       { token },
     );
     assert.equal(reordered.status, 200);
@@ -237,7 +268,9 @@ describe('exam routes', () => {
     );
     assert.equal(Number(patched.data.question.points), 5);
 
-    const removed = await server.client.del(`/api/exams/${examId}/questions/${second.data.question.id}`, { token });
+    const removed = await server.client.del(`/api/exams/${examId}/questions/${second.data.question.id}`, {
+      token,
+    });
     assert.equal(removed.status, 200);
   });
 
@@ -247,13 +280,18 @@ describe('exam routes', () => {
 
     const { QUESTION_IMPORT_HEADERS } = await import('../../src/lib/questionImport.js');
     const { toCsvRows } = await import('../helpers/csv.js');
-    const content = toCsvRows([[...QUESTION_IMPORT_HEADERS], ['ปรนัย', 'ข้อใดถูก?', '2', 'ก', 'ข', 'ค', 'ง', 'A', '', '']], {
-      bom: true,
-    });
+    const content = toCsvRows(
+      [[...QUESTION_IMPORT_HEADERS], ['ปรนัย', 'ข้อใดถูก?', '2', 'ก', 'ข', 'ค', 'ง', 'A', '', '']],
+      {
+        bom: true,
+      },
+    );
 
     const dryForm = new FormData();
     dryForm.append('file', new Blob([content]), 'q.csv');
-    const dry = await server.client.post(`/api/exams/${examId}/questions/import?dryRun=true`, dryForm, { token });
+    const dry = await server.client.post(`/api/exams/${examId}/questions/import?dryRun=true`, dryForm, {
+      token,
+    });
     assert.equal(dry.status, 200);
     assert.equal(dry.data.wouldImport, 1);
 
@@ -269,7 +307,12 @@ describe('exam routes', () => {
     const { examId } = await makeExam(token);
     const put = await server.client.put(
       `/api/exams/${examId}/cutoffs`,
-      { cutoffs: [{ grade: 'A', minPercent: 50 }, { grade: 'F', minPercent: 0 }] },
+      {
+        cutoffs: [
+          { grade: 'A', minPercent: 50 },
+          { grade: 'F', minPercent: 0 },
+        ],
+      },
       { token },
     );
     assert.equal(put.data.cutoffs.length, 2);
@@ -293,7 +336,11 @@ describe('exam routes', () => {
 
   it('validation: allowedIpRanges ที่ไม่ใช่ IP → 400', async () => {
     const { token } = await teacherToken();
-    const res = await server.client.post('/api/exams', { title: 'x', allowedIpRanges: ['999.1.1.1'] }, { token });
+    const res = await server.client.post(
+      '/api/exams',
+      { title: 'x', allowedIpRanges: ['999.1.1.1'] },
+      { token },
+    );
     assert.equal(res.status, 400);
     assert.equal(res.data.error.code, 'BAD_REQUEST');
   });
@@ -333,7 +380,11 @@ describe('grading routes', () => {
     assert.equal(graded.status, 200);
     assert.equal(graded.data.submission.status, 'GRADED');
 
-    const released = await server.client.post(`/api/grading/submissions/${submissionId}/release`, {}, { token });
+    const released = await server.client.post(
+      `/api/grading/submissions/${submissionId}/release`,
+      {},
+      { token },
+    );
     assert.equal(released.data.submission.status, 'RELEASED');
 
     const stats = await server.client.get(`/api/grading/exams/${exam.id}/stats`, { token });
@@ -354,7 +405,11 @@ describe('grading routes', () => {
     const { mc, submissionId } = await setupSubmitted(userId, classroom);
 
     const mcAnswer = await prisma.answer.findFirst({ where: { submissionId, questionId: mc.id } });
-    const res = await server.client.patch(`/api/grading/answers/${mcAnswer.id}`, { isCorrect: false }, { token });
+    const res = await server.client.patch(
+      `/api/grading/answers/${mcAnswer.id}`,
+      { isCorrect: false },
+      { token },
+    );
     assert.equal(res.status, 400);
   });
 });
@@ -362,7 +417,11 @@ describe('grading routes', () => {
 describe('my routes (นักเรียน)', () => {
   it('classrooms / submissions / answers / submit / รอผล / เห็นผลหลังปล่อย', async () => {
     const { token: teacherTokenValue, userId } = await teacherToken();
-    const created = await server.client.post('/api/classrooms', { name: 'ม.6/1' }, { token: teacherTokenValue });
+    const created = await server.client.post(
+      '/api/classrooms',
+      { name: 'ม.6/1' },
+      { token: teacherTokenValue },
+    );
     const classroom = await prisma.classroom.findUnique({ where: { id: created.data.classroom.id } });
     const { exam, mc, text } = await createPublishedExam({ id: userId, role: 'TEACHER' }, classroom);
 
@@ -371,7 +430,11 @@ describe('my routes (นักเรียน)', () => {
     const classrooms = await server.client.get('/api/my/classrooms', { token });
     assert.equal(classrooms.data.classrooms.length, 1);
 
-    const started = await server.client.post(`/api/my/exams/${exam.id}/submissions`, { displayMode: 'PAGINATED' }, { token });
+    const started = await server.client.post(
+      `/api/my/exams/${exam.id}/submissions`,
+      { displayMode: 'PAGINATED' },
+      { token },
+    );
     const submissionId = started.data.submission.id;
 
     const fetched = await server.client.get(`/api/my/submissions/${submissionId}`, { token });
@@ -398,12 +461,19 @@ describe('my routes (นักเรียน)', () => {
       { isCorrect: true, awardedPoints: 2 },
       { token: teacherTokenValue },
     );
-    await server.client.post(`/api/grading/submissions/${submissionId}/release`, {}, { token: teacherTokenValue });
+    await server.client.post(
+      `/api/grading/submissions/${submissionId}/release`,
+      {},
+      { token: teacherTokenValue },
+    );
 
     // ปล่อยแล้ว → เห็นคะแนน/เฉลยผ่านเส้นทางนักเรียน
     const result = await server.client.get(`/api/my/results/${submissionId}`, { token });
     assert.equal(result.status, 200);
     assert.equal(result.data.result.summary.totalScore, 4);
-    assert.equal(result.data.result.questions.some((question) => question.choices?.some((choice) => choice.isCorrect)), true);
+    assert.equal(
+      result.data.result.questions.some((question) => question.choices?.some((choice) => choice.isCorrect)),
+      true,
+    );
   });
 });

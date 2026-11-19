@@ -100,8 +100,12 @@ describe('saveAnswers', () => {
   it('บันทึกทับคำตอบเดิมได้ (upsert)', async () => {
     const { student, exam, mc } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[1].id }]);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[2].id }]);
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[1].id },
+    ]);
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[2].id },
+    ]);
 
     const answers = await prisma.answer.findMany({ where: { submissionId: submission.id } });
     assert.equal(answers.length, 1);
@@ -132,7 +136,9 @@ describe('saveAnswers', () => {
     const { student, exam, text } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
     await expectApiError(
-      submissionService.saveAnswers(submission.id, student.id, [{ questionId: text.id, choiceId: randomUuid }]),
+      submissionService.saveAnswers(submission.id, student.id, [
+        { questionId: text.id, choiceId: randomUuid },
+      ]),
       400,
       /ไม่ต้องส่ง choiceId/,
     );
@@ -142,7 +148,9 @@ describe('saveAnswers', () => {
     const { student, exam, text } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
     await expectApiError(
-      submissionService.saveAnswers(submission.id, student.id, [{ questionId: text.id, textAnswer: 'ก'.repeat(20001) }]),
+      submissionService.saveAnswers(submission.id, student.id, [
+        { questionId: text.id, textAnswer: 'ก'.repeat(20001) },
+      ]),
       400,
       /ยาวเกินไป/,
     );
@@ -153,7 +161,9 @@ describe('saveAnswers', () => {
     const submission = await submissionService.startSubmission(exam.id, student.id);
     await submissionService.submitSubmission(submission.id, student.id);
     await expectApiError(
-      submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[1].id }]),
+      submissionService.saveAnswers(submission.id, student.id, [
+        { questionId: mc.id, choiceId: mc.choices[1].id },
+      ]),
       409,
       /ถูกส่งไปแล้ว/,
     );
@@ -162,10 +172,15 @@ describe('saveAnswers', () => {
   it('หมดเวลาแล้วบันทึกไม่ได้ → 409', async () => {
     const { student, exam, mc } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await prisma.submission.update({ where: { id: submission.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await prisma.submission.update({
+      where: { id: submission.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
 
     await expectApiError(
-      submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[1].id }]),
+      submissionService.saveAnswers(submission.id, student.id, [
+        { questionId: mc.id, choiceId: mc.choices[1].id },
+      ]),
       409,
       /หมดเวลา/,
     );
@@ -176,7 +191,9 @@ describe('saveAnswers', () => {
     const submission = await submissionService.startSubmission(exam.id, student.id);
     const intruder = await createStudent();
     await expectApiError(
-      submissionService.saveAnswers(submission.id, intruder.id, [{ questionId: mc.id, choiceId: mc.choices[1].id }]),
+      submissionService.saveAnswers(submission.id, intruder.id, [
+        { questionId: mc.id, choiceId: mc.choices[1].id },
+      ]),
       403,
       /ไม่ใช่ของคุณ/,
     );
@@ -187,7 +204,9 @@ describe('submitSubmission', () => {
   it('ตรวจปรนัยอัตโนมัติ และรอตรวจอัตนัย (SUBMITTED)', async () => {
     const { student, exam, mc } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]); // ถูก
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]); // ถูก
 
     const result = await submissionService.submitSubmission(submission.id, student.id);
     assert.equal(result.status, 'SUBMITTED');
@@ -206,7 +225,9 @@ describe('submitSubmission', () => {
   it('ตอบผิดปรนัย → 0 คะแนน', async () => {
     const { student, exam, mc } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[3].id }]);
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[3].id },
+    ]);
     await submissionService.submitSubmission(submission.id, student.id);
     const stored = await prisma.submission.findUnique({ where: { id: submission.id } });
     assert.equal(Number(stored.autoScore), 0);
@@ -215,7 +236,9 @@ describe('submitSubmission', () => {
   it('ข้อสอบปรนัยล้วน → ตรวจครบเป็น GRADED ทันที', async () => {
     const { student, exam, mc } = await setup({ withText: false });
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]);
 
     const result = await submissionService.submitSubmission(submission.id, student.id);
     assert.equal(result.status, 'GRADED');
@@ -227,7 +250,10 @@ describe('submitSubmission', () => {
   it('หมดเวลาแล้วยังส่งได้ (ไม่เสียคำตอบที่ทำไว้)', async () => {
     const { student, exam } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await prisma.submission.update({ where: { id: submission.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await prisma.submission.update({
+      where: { id: submission.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
 
     const result = await submissionService.submitSubmission(submission.id, student.id);
     assert.equal(result.status, 'SUBMITTED');
@@ -251,7 +277,9 @@ describe('getStudentSubmission', () => {
   it('คืนข้อมูลใบของตัวเองโดยไม่โชว์คะแนน', async () => {
     const { student, exam, mc } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(submission.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+    await submissionService.saveAnswers(submission.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]);
     await submissionService.submitSubmission(submission.id, student.id);
 
     const result = await submissionService.getStudentSubmission(student.id, submission.id);
@@ -259,13 +287,18 @@ describe('getStudentSubmission', () => {
     assert.equal('totalScore' in result, false);
     // submit สร้างคำตอบครบทุกข้อ (ข้อที่ไม่ได้ตอบมี record ว่าง)
     assert.equal(result.answers.length, 2);
-    assert.ok(result.answers.some((answer) => answer.questionId === mc.id && answer.choiceId === mc.choices[0].id));
+    assert.ok(
+      result.answers.some((answer) => answer.questionId === mc.id && answer.choiceId === mc.choices[0].id),
+    );
     assert.ok(result.answers.every((answer) => !('isCorrect' in answer)));
   });
 
   it('ใบของคนอื่น → 403', async () => {
     const { student, exam } = await setup();
     const submission = await submissionService.startSubmission(exam.id, student.id);
-    await expectApiError(submissionService.getStudentSubmission((await createStudent()).id, submission.id), 403);
+    await expectApiError(
+      submissionService.getStudentSubmission((await createStudent()).id, submission.id),
+      403,
+    );
   });
 });

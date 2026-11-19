@@ -68,10 +68,7 @@ describe('course service', () => {
     const owner = await createTeacher();
     const course = await createCourse(owner);
     await expectApiError(courseService.getCourseDetail(await createTeacher(), course.id), 403);
-    await expectApiError(
-      courseService.getCourseDetail(owner, '11111111-1111-1111-1111-111111111111'),
-      404,
-    );
+    await expectApiError(courseService.getCourseDetail(owner, '11111111-1111-1111-1111-111111111111'), 404);
   });
 });
 
@@ -196,7 +193,11 @@ describe('classroom service', () => {
     await enroll(first, classroom);
     await enroll(second, classroom);
 
-    await expectApiError(classroomService.updateStudent(teacher, second.id, { studentCode: 'S001' }), 409, /ถูกใช้งานแล้ว/);
+    await expectApiError(
+      classroomService.updateStudent(teacher, second.id, { studentCode: 'S001' }),
+      409,
+      /ถูกใช้งานแล้ว/,
+    );
   });
 
   it('อัปเดตนักเรียนนอกห้องของครู → 404', async () => {

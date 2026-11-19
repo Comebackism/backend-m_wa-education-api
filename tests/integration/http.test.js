@@ -107,7 +107,11 @@ describe('auth ผ่าน HTTP', () => {
 
   it('ล็อกอินผิดรหัสผ่าน → 401', async () => {
     const { user } = await registerTeacher(uniqueEmail('teacher'));
-    const res = await server.client.post('/api/auth/login', { email: user.email, password: 'wrong', role: 'TEACHER' });
+    const res = await server.client.post('/api/auth/login', {
+      email: user.email,
+      password: 'wrong',
+      role: 'TEACHER',
+    });
     assert.equal(res.status, 401);
     assert.match(res.data.error.message, /ไม่ถูกต้อง/);
   });
@@ -148,7 +152,11 @@ describe('auth ผ่าน HTTP', () => {
     assert.equal(ok.status, 200);
     assert.ok(ok.data.accessToken);
 
-    const login = await server.client.post('/api/auth/login', { email, password: 'NewPassword1!', role: 'TEACHER' });
+    const login = await server.client.post('/api/auth/login', {
+      email,
+      password: 'NewPassword1!',
+      role: 'TEACHER',
+    });
     assert.equal(login.status, 200);
   });
 
@@ -165,11 +173,10 @@ describe('auth ผ่าน HTTP', () => {
   it('token ที่ verify ผ่านแต่ type ไม่ใช่ access → 401', async () => {
     const teacher = await createTeacher();
     // เซ็นด้วย access secret แต่ type = refresh (กรณีตรวจชั้นสองของ middleware)
-    const wrongType = jwt.sign(
-      { sub: teacher.id, role: 'TEACHER', type: 'refresh' },
-      env.JWT_ACCESS_SECRET,
-      { expiresIn: '15m', issuer: 'wa-education-api' },
-    );
+    const wrongType = jwt.sign({ sub: teacher.id, role: 'TEACHER', type: 'refresh' }, env.JWT_ACCESS_SECRET, {
+      expiresIn: '15m',
+      issuer: 'wa-education-api',
+    });
     const res = await server.client.get('/api/auth/me', { token: wrongType });
     assert.equal(res.status, 401);
     assert.match(res.data.error.message, /access token เท่านั้น/);
@@ -244,11 +251,17 @@ describe('นำเข้ารายชื่อนักเรียนผ่�
     const form = new FormData();
     form.append(
       'file',
-      new Blob([toCsvRows([[...STUDENT_IMPORT_HEADERS], ['S1', 'เด็กใหม่', uniqueEmail('new'), 'KidPass123!']], { bom: true })]),
+      new Blob([
+        toCsvRows([[...STUDENT_IMPORT_HEADERS], ['S1', 'เด็กใหม่', uniqueEmail('new'), 'KidPass123!']], {
+          bom: true,
+        }),
+      ]),
       'roster.csv',
     );
 
-    const res = await server.client.post(`/api/classrooms/${classroomId}/students/import?dryRun=true`, form, { token: accessToken });
+    const res = await server.client.post(`/api/classrooms/${classroomId}/students/import?dryRun=true`, form, {
+      token: accessToken,
+    });
     assert.equal(res.status, 200);
     assert.equal(res.data.dryRun, true);
     assert.equal(res.data.wouldCreate, 1);
@@ -263,11 +276,17 @@ describe('นำเข้ารายชื่อนักเรียนผ่�
     const form = new FormData();
     form.append(
       'file',
-      new Blob([toCsvRows([[...STUDENT_IMPORT_HEADERS], ['S2', 'เด็กจริง', uniqueEmail('real'), 'KidPass123!']], { bom: true })]),
+      new Blob([
+        toCsvRows([[...STUDENT_IMPORT_HEADERS], ['S2', 'เด็กจริง', uniqueEmail('real'), 'KidPass123!']], {
+          bom: true,
+        }),
+      ]),
       'roster.csv',
     );
 
-    const res = await server.client.post(`/api/classrooms/${classroomId}/students/import`, form, { token: accessToken });
+    const res = await server.client.post(`/api/classrooms/${classroomId}/students/import`, form, {
+      token: accessToken,
+    });
     assert.equal(res.status, 201);
     assert.equal(res.data.created, 1);
     assert.equal(await prisma.user.count(), 2);
@@ -277,9 +296,13 @@ describe('นำเข้ารายชื่อนักเรียนผ่�
     const { accessToken } = await registerTeacher(uniqueEmail('teacher'));
     const created = await server.client.post('/api/classrooms', { name: 'ม.6/3' }, { token: accessToken });
     const form = new FormData();
-    const res = await server.client.post(`/api/classrooms/${created.data.classroom.id}/students/import`, form, {
-      token: accessToken,
-    });
+    const res = await server.client.post(
+      `/api/classrooms/${created.data.classroom.id}/students/import`,
+      form,
+      {
+        token: accessToken,
+      },
+    );
     assert.equal(res.status, 400);
     assert.match(res.data.error.message, /ต้องแนบไฟล์/);
   });

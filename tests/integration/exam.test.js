@@ -81,7 +81,9 @@ describe('createExam / listExams / getExamDetail', () => {
     const student = await createStudent();
     await enroll(student, classroom);
     const { exam } = await createPublishedExam(teacher, classroom);
-    await prisma.submission.create({ data: { examId: exam.id, studentId: student.id, status: 'IN_PROGRESS' } });
+    await prisma.submission.create({
+      data: { examId: exam.id, studentId: student.id, status: 'IN_PROGRESS' },
+    });
 
     const detail = await examService.getExamDetail(teacher, exam.id);
     assert.equal(detail.questions.length, 2);
@@ -100,7 +102,10 @@ describe('updateExam / deleteExam', () => {
   it('แก้ไขเฉพาะฟิลด์ที่ส่งมา', async () => {
     const teacher = await createTeacher();
     const exam = await createExam(teacher, { title: 'เดิม' });
-    const updated = await examService.updateExam(teacher, exam.id, { title: 'ใหม่', allowedIpRanges: ['10.0.0.0/8'] });
+    const updated = await examService.updateExam(teacher, exam.id, {
+      title: 'ใหม่',
+      allowedIpRanges: ['10.0.0.0/8'],
+    });
     assert.equal(updated.title, 'ใหม่');
     assert.deepEqual(updated.allowedIpRanges, ['10.0.0.0/8']);
   });
@@ -148,7 +153,12 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
     const teacher = await createTeacher();
     const exam = await createExam(teacher);
     await expectApiError(
-      examService.addQuestion(teacher, exam.id, { type: 'MULTIPLE_CHOICE', prompt: 'x', points: 1, choices: [] }),
+      examService.addQuestion(teacher, exam.id, {
+        type: 'MULTIPLE_CHOICE',
+        prompt: 'x',
+        points: 1,
+        choices: [],
+      }),
       400,
       /อย่างน้อย 2/,
     );
@@ -171,7 +181,11 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
     const teacher = await createTeacher();
     const exam = await createExam(teacher);
     await addTextQuestion(exam, { order: 5 });
-    const next = await examService.addQuestion(teacher, exam.id, { type: 'SHORT_ANSWER', prompt: 'x', points: 1 });
+    const next = await examService.addQuestion(teacher, exam.id, {
+      type: 'SHORT_ANSWER',
+      prompt: 'x',
+      points: 1,
+    });
     assert.equal(next.order, 6);
   });
 
@@ -180,15 +194,25 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
     const exam = await createExam(teacher);
     const question = await addChoiceQuestion(exam, { points: 2 });
     const updated = await examService.updateQuestion(teacher, exam.id, question.id, {
-      choices: [{ label: 'X', text: 'x', isCorrect: true }, { label: 'Y', text: 'y', isCorrect: false }],
+      choices: [
+        { label: 'X', text: 'x', isCorrect: true },
+        { label: 'Y', text: 'y', isCorrect: false },
+      ],
     });
-    assert.deepEqual(updated.choices.map((choice) => choice.label), ['X', 'Y']);
+    assert.deepEqual(
+      updated.choices.map((choice) => choice.label),
+      ['X', 'Y'],
+    );
   });
 
   it('ลบข้อและคิดคะแนนเต็มใหม่', async () => {
     const teacher = await createTeacher();
     const exam = await createExam(teacher);
-    const first = await examService.addQuestion(teacher, exam.id, { type: 'SHORT_ANSWER', prompt: 'a', points: 3 });
+    const first = await examService.addQuestion(teacher, exam.id, {
+      type: 'SHORT_ANSWER',
+      prompt: 'a',
+      points: 3,
+    });
     await examService.addQuestion(teacher, exam.id, { type: 'SHORT_ANSWER', prompt: 'b', points: 4 });
     await examService.deleteQuestion(teacher, exam.id, first.id);
     const stored = await prisma.exam.findUnique({ where: { id: exam.id } });
@@ -230,7 +254,11 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
     const exam = await createExam(teacher);
     const other = await createExam(teacher);
     const question = await addTextQuestion(other);
-    await expectApiError(examService.reorderQuestions(teacher, exam.id, [{ id: question.id, order: 1 }]), 400, /ไม่ได้อยู่ในชุด/);
+    await expectApiError(
+      examService.reorderQuestions(teacher, exam.id, [{ id: question.id, order: 1 }]),
+      400,
+      /ไม่ได้อยู่ในชุด/,
+    );
   });
 
   it('reorderQuestions ตั้งลำดับใหม่ได้', async () => {
@@ -243,7 +271,10 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
       { id: b.id, order: 1 },
     ]);
     const ordered = await prisma.question.findMany({ where: { examId: exam.id }, orderBy: { order: 'asc' } });
-    assert.deepEqual(ordered.map((question) => question.id), [b.id, a.id]);
+    assert.deepEqual(
+      ordered.map((question) => question.id),
+      [b.id, a.id],
+    );
   });
 });
 
@@ -253,7 +284,12 @@ describe('importQuestionsFromFile', () => {
     const exam = await createExam(teacher);
     const buffer = Buffer.from(toCsvRows([Q_HEADER, mcRow], { bom: true }), 'utf8');
 
-    const result = await examService.importQuestionsFromFile(teacher, exam.id, { buffer, filename: 'q.csv' }, {});
+    const result = await examService.importQuestionsFromFile(
+      teacher,
+      exam.id,
+      { buffer, filename: 'q.csv' },
+      {},
+    );
     assert.equal(result.imported, 1);
     assert.equal(result.incomingPoints, 2);
     assert.equal(result.totalsPoints, 2);
@@ -263,7 +299,10 @@ describe('importQuestionsFromFile', () => {
   it('มีแถวผิด → ไม่นำเข้าสักข้อ + details ระบุแถว', async () => {
     const teacher = await createTeacher();
     const exam = await createExam(teacher);
-    const buffer = Buffer.from(toCsvRows([Q_HEADER, mcRow, ['ปรนัย', '', '2', 'ก', 'ข', '', '', 'A', '', '']]), 'utf8');
+    const buffer = Buffer.from(
+      toCsvRows([Q_HEADER, mcRow, ['ปรนัย', '', '2', 'ก', 'ข', '', '', 'A', '', '']]),
+      'utf8',
+    );
 
     await expectApiError(
       examService.importQuestionsFromFile(teacher, exam.id, { buffer, filename: 'q.csv' }, {}),
@@ -279,7 +318,12 @@ describe('importQuestionsFromFile', () => {
     const exam = await createExam(teacher);
     const buffer = Buffer.from(toCsvRows([Q_HEADER, mcRow], { bom: true }), 'utf8');
 
-    const result = await examService.importQuestionsFromFile(teacher, exam.id, { buffer, filename: 'q.csv' }, { dryRun: true });
+    const result = await examService.importQuestionsFromFile(
+      teacher,
+      exam.id,
+      { buffer, filename: 'q.csv' },
+      { dryRun: true },
+    );
     assert.equal(result.dryRun, true);
     assert.equal(result.wouldImport, 1);
     assert.equal(result.preview.length, 1);
@@ -314,8 +358,22 @@ describe('เกณฑ์ตัดเกรด (replaceCutoffs)', () => {
     });
     await prisma.answer.createMany({
       data: [
-        { submissionId: submission.id, questionId: mc.id, choiceId: mc.choices[0].id, isCorrect: true, autoGraded: true, awardedPoints: 2 },
-        { submissionId: submission.id, questionId: text.id, textAnswer: 'ตอบ', isCorrect: true, autoGraded: false, awardedPoints: 2 },
+        {
+          submissionId: submission.id,
+          questionId: mc.id,
+          choiceId: mc.choices[0].id,
+          isCorrect: true,
+          autoGraded: true,
+          awardedPoints: 2,
+        },
+        {
+          submissionId: submission.id,
+          questionId: text.id,
+          textAnswer: 'ตอบ',
+          isCorrect: true,
+          autoGraded: false,
+          awardedPoints: 2,
+        },
       ],
     });
 
@@ -351,7 +409,11 @@ describe('assignClassroom / unassignClassroom', () => {
     const classroom = await createClassroom(teacher);
     const exam = await createExam(teacher);
     await examService.assignClassroom(teacher, exam.id, { classroomId: classroom.id });
-    await expectApiError(examService.assignClassroom(teacher, exam.id, { classroomId: classroom.id }), 409, /แล้ว/);
+    await expectApiError(
+      examService.assignClassroom(teacher, exam.id, { classroomId: classroom.id }),
+      409,
+      /แล้ว/,
+    );
   });
 
   it('unassign ที่ไม่มีอยู่ → 404', async () => {
@@ -427,7 +489,15 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
   it('หลังส่งแล้ว canStart = false และยังไม่โชว์คะแนนจนกว่าจะปล่อยผล', async () => {
     const { exam, student } = await setup();
     await prisma.submission.create({
-      data: { examId: exam.id, studentId: student.id, status: 'SUBMITTED', submittedAt: new Date(), totalScore: 2, percent: 50, grade: 'F' },
+      data: {
+        examId: exam.id,
+        studentId: student.id,
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        totalScore: 2,
+        percent: 50,
+        grade: 'F',
+      },
     });
     const [row] = await examService.listStudentExams(student.id);
     assert.equal(row.canStart, false);
@@ -438,7 +508,16 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
   it('หลังปล่อยผล โชว์คะแนนและเกรด', async () => {
     const { exam, student } = await setup();
     await prisma.submission.create({
-      data: { examId: exam.id, studentId: student.id, status: 'RELEASED', submittedAt: new Date(), releasedAt: new Date(), totalScore: 3, percent: 75, grade: 'B+' },
+      data: {
+        examId: exam.id,
+        studentId: student.id,
+        status: 'RELEASED',
+        submittedAt: new Date(),
+        releasedAt: new Date(),
+        totalScore: 3,
+        percent: 75,
+        grade: 'B+',
+      },
     });
     const [row] = await examService.listStudentExams(student.id);
     assert.equal(row.mySubmission.totalScore, 3);

@@ -2,7 +2,13 @@ import { after, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { disconnectDatabase, prisma, resetDatabase } from '../helpers/db.js';
-import { createClassroom, createPublishedExam, createStudent, createTeacher, enroll } from '../helpers/fixtures.js';
+import {
+  createClassroom,
+  createPublishedExam,
+  createStudent,
+  createTeacher,
+  enroll,
+} from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
 import * as gradingService from '../../src/services/grading.service.js';
 import * as resultService from '../../src/services/result.service.js';
@@ -22,7 +28,9 @@ describe('listStudentResults', () => {
     const { exam, mc, text } = await createPublishedExam(teacher, classroom);
 
     // ใบที่ยังทำอยู่ → ต้องไม่โผล่
-    await prisma.submission.create({ data: { examId: exam.id, studentId: student.id, status: 'IN_PROGRESS' } });
+    await prisma.submission.create({
+      data: { examId: exam.id, studentId: student.id, status: 'IN_PROGRESS' },
+    });
     assert.deepEqual(await resultService.listStudentResults(student.id), []);
     void mc;
     void text;
@@ -35,7 +43,15 @@ describe('listStudentResults', () => {
     await enroll(student, classroom);
     const { exam } = await createPublishedExam(teacher, classroom);
     await prisma.submission.create({
-      data: { examId: exam.id, studentId: student.id, status: 'SUBMITTED', submittedAt: new Date(), totalScore: 2, percent: 50, grade: 'D' },
+      data: {
+        examId: exam.id,
+        studentId: student.id,
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        totalScore: 2,
+        percent: 50,
+        grade: 'D',
+      },
     });
 
     const [row] = await resultService.listStudentResults(student.id);
@@ -81,7 +97,16 @@ describe('listStudentResults', () => {
     const first = await createPublishedExam(teacher, classroom);
     const second = await createPublishedExam(teacher, classroom);
     await prisma.submission.create({
-      data: { examId: first.exam.id, studentId: student.id, status: 'RELEASED', submittedAt: new Date(), releasedAt: new Date(), totalScore: 1, percent: 25, grade: 'F' },
+      data: {
+        examId: first.exam.id,
+        studentId: student.id,
+        status: 'RELEASED',
+        submittedAt: new Date(),
+        releasedAt: new Date(),
+        totalScore: 1,
+        percent: 25,
+        grade: 'F',
+      },
     });
 
     const filtered = await resultService.listStudentResults(student.id, { examId: second.exam.id });
@@ -98,10 +123,18 @@ describe('getStudentResult', () => {
     const { exam, mc, text } = await createPublishedExam(teacher, classroom);
 
     const started = await submissionService.startSubmission(exam.id, student.id);
-    await submissionService.saveAnswers(started.id, student.id, [{ questionId: mc.id, choiceId: mc.choices[0].id }]);
+    await submissionService.saveAnswers(started.id, student.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]);
     await submissionService.submitSubmission(started.id, student.id);
-    const textAnswer = await prisma.answer.findFirst({ where: { submissionId: started.id, questionId: text.id } });
-    await gradingService.gradeAnswer(teacher, textAnswer.id, { isCorrect: true, awardedPoints: 2, graderComment: 'ดีมาก' });
+    const textAnswer = await prisma.answer.findFirst({
+      where: { submissionId: started.id, questionId: text.id },
+    });
+    await gradingService.gradeAnswer(teacher, textAnswer.id, {
+      isCorrect: true,
+      awardedPoints: 2,
+      graderComment: 'ดีมาก',
+    });
     await gradingService.releaseSubmission(teacher, started.id);
 
     return { teacher, student, exam, mc, text, submissionId: started.id };
@@ -142,12 +175,19 @@ describe('getStudentResult', () => {
 
   it('ผลสอบของคนอื่น → 403', async () => {
     const { submissionId } = await releasedSetup();
-    await expectApiError(resultService.getStudentResult((await createStudent()).id, submissionId), 403, /ไม่ใช่ของคุณ/);
+    await expectApiError(
+      resultService.getStudentResult((await createStudent()).id, submissionId),
+      403,
+      /ไม่ใช่ของคุณ/,
+    );
   });
 
   it('ไม่พบผลสอบ → 404', async () => {
     await expectApiError(
-      resultService.getStudentResult('11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111'),
+      resultService.getStudentResult(
+        '11111111-1111-1111-1111-111111111111',
+        '11111111-1111-1111-1111-111111111111',
+      ),
       404,
     );
   });

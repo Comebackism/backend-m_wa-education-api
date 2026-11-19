@@ -22,7 +22,7 @@ describe('csvCell', () => {
     assert.equal(csvCell('บรรทัด1\nบรรทัด2'), '"บรรทัด1\nบรรทัด2"');
   });
 
-  it('กัน CSV injection: เติม \' นำหน้าค่าที่เริ่มด้วย = + - @ TAB CR', () => {
+  it("กัน CSV injection: เติม ' นำหน้าค่าที่เริ่มด้วย = + - @ TAB CR", () => {
     assert.equal(csvCell('=1+1'), "'=1+1");
     assert.equal(csvCell('+SUM(A1)'), "'+SUM(A1)");
     assert.equal(csvCell('-2'), "'-2"); // ขึ้นต้นด้วย - จึงเติม ' (ไม่มี , " หรือขึ้นบรรทัดใหม่จึงไม่ครอบ)

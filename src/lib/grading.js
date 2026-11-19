@@ -53,9 +53,7 @@ export async function recalculateSubmission(submissionId) {
   const grade = resolveGrade(submission.exam.cutoffs, percent);
   const allGraded = ungradedCount === 0;
 
-  const status = submission.status === 'RELEASED'
-    ? 'RELEASED'
-    : (allGraded ? 'GRADED' : 'SUBMITTED');
+  const status = submission.status === 'RELEASED' ? 'RELEASED' : allGraded ? 'GRADED' : 'SUBMITTED';
 
   return prisma.submission.update({
     where: { id: submissionId },

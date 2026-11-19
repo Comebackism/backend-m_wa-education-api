@@ -25,7 +25,10 @@ describe('decodeCsvBuffer', () => {
 describe('parseTabularFileRows', () => {
   it('อ่าน CSV เป็น array ของแถว', async () => {
     const rows = await parseTabularFileRows(Buffer.from('a,b\n1,2\n', 'utf8'), 'x.csv');
-    assert.deepEqual(rows, [['a', 'b'], ['1', '2']]);
+    assert.deepEqual(rows, [
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   it('รองรับคอลัมน์ไม่เท่ากัน (relax_column_count)', async () => {
@@ -34,19 +37,31 @@ describe('parseTabularFileRows', () => {
   });
 
   it('อ่าน .xlsx เป็น array ของแถว', async () => {
-    const buffer = await buildXlsxBuffer([['a', 'b'], [1, 2]]);
+    const buffer = await buildXlsxBuffer([
+      ['a', 'b'],
+      [1, 2],
+    ]);
     const rows = await parseTabularFileRows(buffer, 'x.xlsx');
-    assert.deepEqual(rows, [['a', 'b'], ['1', '2']]);
+    assert.deepEqual(rows, [
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   it('นามสกุลไม่รองรับ → ApiError พร้อมข้อความ', async () => {
-    await assert.rejects(() => parseTabularFileRows(Buffer.from('a'), 'x.txt'), (error) => {
-      assert.match(error.message, /รองรับเฉพาะไฟล์/);
-      return true;
-    });
+    await assert.rejects(
+      () => parseTabularFileRows(Buffer.from('a'), 'x.txt'),
+      (error) => {
+        assert.match(error.message, /รองรับเฉพาะไฟล์/);
+        return true;
+      },
+    );
   });
 
   it('.xlsx ที่เสียหาย → ApiError', async () => {
-    await assert.rejects(() => parseTabularFileRows(Buffer.from('not an xlsx'), 'bad.xlsx'), /อ่านไฟล์ Excel ไม่สำเร็จ/);
+    await assert.rejects(
+      () => parseTabularFileRows(Buffer.from('not an xlsx'), 'bad.xlsx'),
+      /อ่านไฟล์ Excel ไม่สำเร็จ/,
+    );
   });
 });

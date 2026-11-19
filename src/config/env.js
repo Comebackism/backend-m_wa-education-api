@@ -28,7 +28,9 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  const details = parsed.error.issues.map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`).join('\n');
+  const details = parsed.error.issues
+    .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('\n');
   console.error(`\n[env] invalid environment configuration:\n${details}\n`);
   process.exit(1);
 }

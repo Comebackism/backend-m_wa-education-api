@@ -2,7 +2,14 @@ import { after, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { disconnectDatabase, prisma, resetDatabase } from '../helpers/db.js';
-import { DEFAULT_PASSWORD, createAdmin, createClassroom, createStudent, createTeacher, uniqueEmail } from '../helpers/fixtures.js';
+import {
+  DEFAULT_PASSWORD,
+  createAdmin,
+  createClassroom,
+  createStudent,
+  createTeacher,
+  uniqueEmail,
+} from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
 import * as authService from '../../src/services/auth.service.js';
 import { hashToken, verifyAccessToken, verifyRefreshToken } from '../../src/lib/jwt.js';
@@ -77,7 +84,12 @@ describe('registerStudent', () => {
     await createStudent({ studentCode: 'S0001' });
     await expectApiError(
       authService.registerStudent(
-        { email: uniqueEmail('student'), password: DEFAULT_PASSWORD, fullName: 'นักเรียน', studentCode: 'S0001' },
+        {
+          email: uniqueEmail('student'),
+          password: DEFAULT_PASSWORD,
+          fullName: 'นักเรียน',
+          studentCode: 'S0001',
+        },
         agent,
       ),
       409,
@@ -134,7 +146,10 @@ describe('login', () => {
   it('บัญชี ADMIN เข้าได้ทั้งช่องทางครูและนักเรียน', async () => {
     const admin = await createAdmin();
     for (const role of ['TEACHER', 'STUDENT']) {
-      const { user } = await authService.login({ email: admin.email, password: DEFAULT_PASSWORD, role }, agent);
+      const { user } = await authService.login(
+        { email: admin.email, password: DEFAULT_PASSWORD, role },
+        agent,
+      );
       assert.equal(user.id, admin.id, role);
     }
   });
@@ -143,7 +158,10 @@ describe('login', () => {
 describe('refresh', () => {
   it('rotate: ใช้ token เก่าได้ครั้งเดียว แล้วถูกเพิกถอน', async () => {
     const teacher = await createTeacher();
-    const first = await authService.login({ email: teacher.email, password: DEFAULT_PASSWORD, role: 'TEACHER' }, agent);
+    const first = await authService.login(
+      { email: teacher.email, password: DEFAULT_PASSWORD, role: 'TEACHER' },
+      agent,
+    );
 
     const rotated = await authService.refresh(first.tokens.refreshToken, agent);
     assert.equal(verifyRefreshToken(rotated.tokens.refreshToken).sub, teacher.id);
@@ -190,10 +208,15 @@ describe('changePassword', () => {
 describe('logout', () => {
   it('เพิกถอน refresh token และไม่ throw เมื่อไม่มี token', async () => {
     const teacher = await createTeacher();
-    const { tokens } = await authService.login({ email: teacher.email, password: DEFAULT_PASSWORD, role: 'TEACHER' }, agent);
+    const { tokens } = await authService.login(
+      { email: teacher.email, password: DEFAULT_PASSWORD, role: 'TEACHER' },
+      agent,
+    );
 
     await authService.logout(tokens.refreshToken);
-    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(tokens.refreshToken) } });
+    const stored = await prisma.refreshToken.findUnique({
+      where: { tokenHash: hashToken(tokens.refreshToken) },
+    });
     assert.ok(stored.revokedAt instanceof Date);
 
     await authService.logout(null);

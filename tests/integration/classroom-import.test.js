@@ -53,7 +53,9 @@ describe('importStudentsFromFile — สร้างบัญชีใหม่'
     assert.equal(student.studentCode, 'S100');
     assert.equal(await verifyPassword('KidPass123!', student.passwordHash), true);
 
-    const enrollment = await prisma.enrollment.findFirst({ where: { classroomId: classroom.id, studentId: student.id } });
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { classroomId: classroom.id, studentId: student.id },
+    });
     assert.ok(enrollment);
   });
 
@@ -63,7 +65,12 @@ describe('importStudentsFromFile — สร้างบัญชีใหม่'
     const email = uniqueEmail('random');
 
     const buffer = await rosterBuffer([['', 'ไม่มีรหัส', email, '']]);
-    const result = await classroomService.importStudentsFromFile(teacher, classroom.id, { buffer, filename: 'r.csv' }, {});
+    const result = await classroomService.importStudentsFromFile(
+      teacher,
+      classroom.id,
+      { buffer, filename: 'r.csv' },
+      {},
+    );
 
     const entry = result.students[0];
     assert.equal(entry.temporaryPassword.length, 12);
@@ -76,7 +83,12 @@ describe('importStudentsFromFile — สร้างบัญชีใหม่'
     const classroom = await createClassroom(teacher);
     const buffer = await rosterBuffer([['S1', 'เอ็กเซล', uniqueEmail('xlsx'), 'Passw0rd!']], { xlsx: true });
 
-    const result = await classroomService.importStudentsFromFile(teacher, classroom.id, { buffer, filename: 'r.xlsx' }, {});
+    const result = await classroomService.importStudentsFromFile(
+      teacher,
+      classroom.id,
+      { buffer, filename: 'r.xlsx' },
+      {},
+    );
     assert.equal(result.created, 1);
   });
 });
@@ -88,7 +100,12 @@ describe('importStudentsFromFile — บัญชีเดิม', () => {
     const student = await createStudent({ email: uniqueEmail('existing'), studentCode: 'EX01' });
 
     const buffer = await rosterBuffer([['EX01', student.fullName, student.email, '']]);
-    const result = await classroomService.importStudentsFromFile(teacher, classroom.id, { buffer, filename: 'r.csv' }, {});
+    const result = await classroomService.importStudentsFromFile(
+      teacher,
+      classroom.id,
+      { buffer, filename: 'r.csv' },
+      {},
+    );
 
     assert.equal(result.created, 0);
     assert.equal(result.enrolled, 1);
@@ -103,7 +120,12 @@ describe('importStudentsFromFile — บัญชีเดิม', () => {
     await enroll(student, classroom);
 
     const buffer = await rosterBuffer([[student.studentCode ?? '', student.fullName, student.email, '']]);
-    const result = await classroomService.importStudentsFromFile(teacher, classroom.id, { buffer, filename: 'r.csv' }, {});
+    const result = await classroomService.importStudentsFromFile(
+      teacher,
+      classroom.id,
+      { buffer, filename: 'r.csv' },
+      {},
+    );
 
     assert.equal(result.skipped, 1);
     assert.equal(result.enrolled, 0);
@@ -199,7 +221,13 @@ describe('importStudentsFromFile — all-or-nothing', () => {
       classroomService.importStudentsFromFile(
         teacher,
         classroom.id,
-        { buffer: await rosterBuffer([['', 'A', email, ''], ['', 'B', email, '']]), filename: 'r.csv' },
+        {
+          buffer: await rosterBuffer([
+            ['', 'A', email, ''],
+            ['', 'B', email, ''],
+          ]),
+          filename: 'r.csv',
+        },
         {},
       ),
       400,
@@ -235,7 +263,10 @@ describe('importStudentsFromFile — dryRun', () => {
     assert.equal(result.wouldCreate, 1);
     assert.equal(result.wouldEnroll, 1);
     assert.equal(result.wouldSkip, 1);
-    assert.equal(result.students.every((entry) => entry.temporaryPassword === undefined), true);
+    assert.equal(
+      result.students.every((entry) => entry.temporaryPassword === undefined),
+      true,
+    );
     assert.equal(await prisma.user.count({ where: { email: newEmail } }), 0);
     assert.equal(await prisma.user.count(), before);
   });
@@ -268,7 +299,10 @@ describe('importStudentsFromFile — สิทธิ์', () => {
     const result = await classroomService.importStudentsFromFile(
       admin,
       classroom.id,
-      { buffer: await rosterBuffer([['', 'A', uniqueEmail('admin-import'), 'Passw0rd!']]), filename: 'r.csv' },
+      {
+        buffer: await rosterBuffer([['', 'A', uniqueEmail('admin-import'), 'Passw0rd!']]),
+        filename: 'r.csv',
+      },
       {},
     );
     assert.equal(result.created, 1);
@@ -289,10 +323,14 @@ describe('addStudentToClassroom', () => {
     const classroom = await createClassroom(teacher);
     const email = uniqueEmail('added');
 
-    const { student, temporaryPassword } = await classroomService.addStudentToClassroom(teacher, classroom.id, {
-      email,
-      fullName: 'เพิ่มเอง',
-    });
+    const { student, temporaryPassword } = await classroomService.addStudentToClassroom(
+      teacher,
+      classroom.id,
+      {
+        email,
+        fullName: 'เพิ่มเอง',
+      },
+    );
 
     assert.equal(student.role, 'STUDENT');
     assert.equal(temporaryPassword.length, 12);
@@ -305,7 +343,9 @@ describe('addStudentToClassroom', () => {
     const classroom = await createClassroom(teacher);
     const student = await createStudent();
 
-    const result = await classroomService.addStudentToClassroom(teacher, classroom.id, { email: student.email });
+    const result = await classroomService.addStudentToClassroom(teacher, classroom.id, {
+      email: student.email,
+    });
     assert.equal(result.student.id, student.id);
     assert.equal(result.temporaryPassword, null);
   });
@@ -315,7 +355,9 @@ describe('addStudentToClassroom', () => {
     const classroom = await createClassroom(teacher);
     const student = await createStudent({ studentCode: 'LOOKUP01' });
 
-    const result = await classroomService.addStudentToClassroom(teacher, classroom.id, { studentCode: 'LOOKUP01' });
+    const result = await classroomService.addStudentToClassroom(teacher, classroom.id, {
+      studentCode: 'LOOKUP01',
+    });
     assert.equal(result.student.id, student.id);
     assert.equal(await prisma.enrollment.count({ where: { classroomId: classroom.id } }), 1);
   });
@@ -434,7 +476,10 @@ describe('createStudent (เส้นทาง POST /students)', () => {
       classroomId: classroom.id,
     });
 
-    assert.equal(await prisma.enrollment.count({ where: { classroomId: classroom.id, studentId: student.id } }), 1);
+    assert.equal(
+      await prisma.enrollment.count({ where: { classroomId: classroom.id, studentId: student.id } }),
+      1,
+    );
   });
 
   it('อีเมลซ้ำบัญชีเดิม → 409', async () => {
@@ -450,6 +495,10 @@ describe('createStudent (เส้นทาง POST /students)', () => {
 
   it('ไม่ระบุ email/fullName → 400', async () => {
     const teacher = await createTeacher();
-    await expectApiError(classroomService.createStudent(teacher, { email: uniqueEmail('no-name') }), 400, /ต้องระบุ email และ fullName/);
+    await expectApiError(
+      classroomService.createStudent(teacher, { email: uniqueEmail('no-name') }),
+      400,
+      /ต้องระบุ email และ fullName/,
+    );
   });
 });

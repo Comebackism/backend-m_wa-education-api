@@ -95,9 +95,8 @@ export async function gradeAnswer(teacherId, answerId, payload) {
   }
 
   const maxPoints = toNumber(answer.question.points);
-  const awardedPoints = payload.awardedPoints !== undefined
-    ? payload.awardedPoints
-    : (payload.isCorrect ? maxPoints : 0);
+  const awardedPoints =
+    payload.awardedPoints !== undefined ? payload.awardedPoints : payload.isCorrect ? maxPoints : 0;
 
   if (awardedPoints < 0 || awardedPoints > maxPoints) {
     throw ApiError.badRequest(`คะแนนที่ให้ต้องอยู่ระหว่าง 0 ถึง ${maxPoints}`);
@@ -137,10 +136,12 @@ export async function releaseSubmission(teacherId, submissionId) {
 
   await recalculateSubmission(submissionId);
 
-  const released = serializeTeacherSubmission(await prisma.submission.update({
-    where: { id: submissionId },
-    data: { status: 'RELEASED', releasedAt: new Date() },
-  }));
+  const released = serializeTeacherSubmission(
+    await prisma.submission.update({
+      where: { id: submissionId },
+      data: { status: 'RELEASED', releasedAt: new Date() },
+    }),
+  );
 
   // แจ้งนักเรียนทันทีว่าดูผลได้แล้ว (ก่อนหน้านี้จะถูกซ่อนไว้)
   emitToUser(submission.studentId, RealtimeEvent.RESULT_RELEASED, {
@@ -160,7 +161,9 @@ export async function releaseExamResults(teacherId, examId) {
     select: { id: true, studentId: true, answers: { select: { isCorrect: true } } },
   });
 
-  const ready = candidates.filter((submission) => submission.answers.every((answer) => answer.isCorrect !== null));
+  const ready = candidates.filter((submission) =>
+    submission.answers.every((answer) => answer.isCorrect !== null),
+  );
   const skipped = candidates.length - ready.length;
 
   for (const submission of ready) {
@@ -173,9 +176,20 @@ export async function releaseExamResults(teacherId, examId) {
   });
 
   // แจ้งนักเรียนทุกคนที่ถูกปล่อยผลในรอบนี้
-  emitToUsers(ready.map((submission) => submission.studentId), RealtimeEvent.RESULT_RELEASED, { examId });
+  emitToUsers(
+    ready.map((submission) => submission.studentId),
+    RealtimeEvent.RESULT_RELEASED,
+    { examId },
+  );
 
-  return { released: result.count, skipped, message: skipped > 0 ? `ปล่อยผลแล้ว ${result.count} คน (ข้าม ${skipped} คนที่ยังตรวจไม่ครบ)` : `ปล่อยผลแล้ว ${result.count} คน` };
+  return {
+    released: result.count,
+    skipped,
+    message:
+      skipped > 0
+        ? `ปล่อยผลแล้ว ${result.count} คน (ข้าม ${skipped} คนที่ยังตรวจไม่ครบ)`
+        : `ปล่อยผลแล้ว ${result.count} คน`,
+  };
 }
 
 /**
@@ -199,7 +213,9 @@ export async function getExamStats(teacherId, examId) {
       totalScore: true,
       percent: true,
       grade: true,
-      answers: { select: { questionId: true, choiceId: true, textAnswer: true, isCorrect: true, awardedPoints: true } },
+      answers: {
+        select: { questionId: true, choiceId: true, textAnswer: true, isCorrect: true, awardedPoints: true },
+      },
     },
   });
 
@@ -232,7 +248,8 @@ export async function getExamStats(teacherId, examId) {
     }
   }
 
-  const mean = (list) => (list.length ? round2(list.reduce((sum, value) => sum + value, 0) / list.length) : 0);
+  const mean = (list) =>
+    list.length ? round2(list.reduce((sum, value) => sum + value, 0) / list.length) : 0;
   const totalScores = scored.map((submission) => toNumber(submission.totalScore));
   const percents = scored.map((submission) => toNumber(submission.percent));
 

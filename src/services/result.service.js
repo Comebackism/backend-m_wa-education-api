@@ -11,7 +11,14 @@ export async function listStudentResults(studentId, { examId } = {}) {
   const submissions = await prisma.submission.findMany({
     where: { studentId, status: { in: ['SUBMITTED', 'GRADED', 'RELEASED'] }, ...(examId ? { examId } : {}) },
     include: {
-      exam: { select: { id: true, title: true, totalsPoints: true, course: { select: { code: true, title: true } } } },
+      exam: {
+        select: {
+          id: true,
+          title: true,
+          totalsPoints: true,
+          course: { select: { code: true, title: true } },
+        },
+      },
     },
     orderBy: [{ submittedAt: 'desc' }],
   });
@@ -70,7 +77,10 @@ export async function getStudentResult(studentId, submissionId) {
       id: submission.exam.id,
       title: submission.exam.title,
       totalsPoints: toNumber(submission.exam.totalsPoints),
-      cutoffs: submission.exam.cutoffs.map((cutoff) => ({ grade: cutoff.grade, minPercent: toNumber(cutoff.minPercent) })),
+      cutoffs: submission.exam.cutoffs.map((cutoff) => ({
+        grade: cutoff.grade,
+        minPercent: toNumber(cutoff.minPercent),
+      })),
     },
     status: submission.status,
     submittedAt: submission.submittedAt,
