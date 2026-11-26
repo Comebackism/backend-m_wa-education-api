@@ -9,7 +9,8 @@
  *   5. unit test (เร็ว ไม่ใช้ DB)                          → ด่านแรกก่อนแตะ DB
  *   6. เตรียมฐานข้อมูลเทสต์ (migrate deploy)               → scripts/test-db.mjs
  *   7. รัน integration test + coverage                     → scripts/ci-test.mjs
- *   8. ตรวจช่องโหว่ dependency (ไม่บล็อก build)            → npm audit
+ *   8. รัน API test ด้วย Playwright + ออก JUnit XML         → npm run test:api
+ *   9. ตรวจช่องโหว่ dependency (ไม่บล็อก build)            → npm audit
  *
  * สิ่งที่ต้องเตรียมบน Jenkins
  *   - Credential ชนิด Secret text ชื่อ "wa-education-test-db-url"
@@ -103,6 +104,16 @@ pipeline {
       }
     }
 
+    stage('API test (Playwright)') {
+      steps {
+        // ยิง HTTP จริงจากนอกโปรเซสเทสต์ (black-box) — ใช้ฐานข้อมูลเทสต์ตัวเดียวกับ stage ก่อนหน้า
+        // โหมด API ล้วน: ไม่เปิดเบราว์เซอร์ จึงไม่ต้อง `npx playwright install` (npm ci ไม่โหลดเบราว์เซอร์)
+        // set CI=true → Playwright ไม่ไปหยิบเซิร์ฟเวอร์ที่ค้างอยู่ที่พอร์ต 4100 (สตาร์ทใหม่ทุกรอบ)
+        // ผลรายเคสออกที่ reports/playwright-junit.xml ให้ junit step ด้านล่างเก็บ
+        bat 'chcp 65001 >nul & set "CI=true" && npm run test:api'
+      }
+    }
+
     stage('ตรวจช่องโหว่ dependencies') {
       steps {
         // รายงานไว้ก่อน — ยังไม่บล็อก build (เปลี่ยนเป็น fail ได้เมื่อพร้อม)
@@ -113,8 +124,9 @@ pipeline {
 
   post {
     always {
-      // ผลทดสอบรายเคส (ต้องมี JUnit plugin — มาพร้อม Jenkins อยู่แล้ว)
-      junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+      // ผลทดสอบรายเคส — junit.xml (node:test) + playwright-junit.xml (Playwright)
+      // ต้องมี JUnit plugin (มาพร้อม Jenkins อยู่แล้ว)
+      junit allowEmptyResults: true, testResults: 'reports/*.xml'
 
       // เผยแพร่ coverage + quality gate (Coverage plugin, parser LCOV)
       // LINE < 95% = build แดง

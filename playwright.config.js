@@ -13,6 +13,7 @@ import { defineConfig } from '@playwright/test';
  *
  * หมายเหตุ
  *   - ไม่ต้อง `npx playwright install` เพราะไม่ได้เปิดเบราว์เซอร์เลย (โหมด API ล้วน)
+ *     ทั้ง playwright/playwright-core ไม่มี install script และไม่ดาวน์โหลดเบราว์เซอร์ตอน `npm ci`
  *   - เทสต์แชร์ฐานข้อมูลเทสต์ร่วมกัน (TRUNCATE) จึงบังคับ workers: 1
  *   - จงใจไม่ให้ `npm test`/`test:ci` เก็บไฟล์ชุดนี้ (คนละ runner, ไม่มี coverage)
  *     ถ้าต้องการรันใช้ `npm run test:api`
@@ -33,9 +34,9 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
 
-  reporter: process.env.CI
-    ? [['list'], ['junit', { outputFile: 'reports/playwright-junit.xml' }]]
-    : [['list']],
+  // ออกรายงาน JUnit XML เสมอ เพื่อให้ Jenkins (junit step) อ่านผลรายเคสได้
+  // → reports/playwright-junit.xml (โฟลเดอร์ reports/ ถูก .gitignore ไว้แล้ว)
+  reporter: [['list'], ['junit', { outputFile: 'reports/playwright-junit.xml' }]],
 
   use: {
     baseURL,
