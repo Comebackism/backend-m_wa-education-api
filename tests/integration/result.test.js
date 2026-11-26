@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { disconnectDatabase, prisma, resetDatabase } from '../helpers/db.js';
 import {
+  addTextQuestion,
   createClassroom,
   createPublishedExam,
   createStudent,
@@ -190,5 +191,20 @@ describe('getStudentResult', () => {
       ),
       404,
     );
+  });
+
+  it('ข้อที่เพิ่มหลังส่ง (ไม่มีคำตอบ) → myAnswer/ผล เป็นค่าว่าง ไม่พัง', async () => {
+    const { exam, student, submissionId } = await releasedSetup();
+    await addTextQuestion(exam, { prompt: 'เพิ่มทีหลัง', order: 99 });
+
+    const result = await resultService.getStudentResult(student.id, submissionId);
+    const extra = result.questions.find((question) => question.prompt === 'เพิ่มทีหลัง');
+    assert.ok(extra);
+    assert.equal(extra.myAnswer.choiceId, null);
+    assert.equal(extra.myAnswer.textAnswer, null);
+    assert.equal(extra.result.isCorrect, null);
+    assert.equal(extra.result.awardedPoints, undefined);
+    assert.equal(extra.result.autoGraded, false);
+    assert.equal(extra.result.teacherComment, null);
   });
 });

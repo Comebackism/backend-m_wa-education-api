@@ -60,6 +60,10 @@ describe('normalizeIp', () => {
     assert.equal(normalizeIp(undefined), null);
     assert.equal(normalizeIp(42), null);
   });
+
+  it('ปฏิเสธ IPv4-mapped ที่อ็อกเท็ตเกิน 255', () => {
+    assert.equal(normalizeIp('::ffff:999.1.1.1'), null);
+  });
 });
 
 describe('formatIp', () => {

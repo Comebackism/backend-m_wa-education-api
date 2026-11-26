@@ -4,12 +4,15 @@ import assert from 'node:assert/strict';
 import { disconnectDatabase, prisma, resetDatabase } from '../helpers/db.js';
 import {
   createClassroom,
+  createExam,
   createPublishedExam,
   createStudent,
+  createSubmission,
   createTeacher,
   enroll,
 } from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
+import { recalculateSubmission } from '../../src/lib/grading.js';
 import * as gradingService from '../../src/services/grading.service.js';
 import * as submissionService from '../../src/services/submission.service.js';
 
@@ -263,6 +266,30 @@ describe('getExamStats', () => {
     assert.equal(mc.correctCount, 1);
     assert.equal(mc.correctRate, 100);
   });
+
+  it('มีใบกำลังทำ + คำตอบที่ชี้ข้อของชุดอื่น → นับถูกและไม่พัง', async () => {
+    const { teacher, exam, student } = await setupSubmitted();
+
+    const other = await createStudent({ fullName: 'กำลังทำ' });
+    await createSubmission(exam, other, { status: 'IN_PROGRESS' });
+
+    // จำลอง "ข้อถูกลบหลังส่ง" — คำตอบชี้ไปยังข้อที่ไม่อยู่ในชุดนี้
+    const otherExam = await createExam(teacher);
+    const orphan = await prisma.question.create({
+      data: { examId: otherExam.id, type: 'SHORT_ANSWER', prompt: 'orphan', points: 1, order: 1 },
+    });
+    const target = await prisma.submission.findUnique({
+      where: { examId_studentId: { examId: exam.id, studentId: student.id } },
+    });
+    await prisma.answer.create({
+      data: { submissionId: target.id, questionId: orphan.id, choiceId: null, textAnswer: 'x' },
+    });
+
+    const stats = await gradingService.getExamStats(teacher, exam.id);
+    assert.equal(stats.summary.inProgress, 1);
+    assert.equal(stats.questions.length, 2);
+    assert.equal(stats.scores.highest, 0);
+  });
 });
 
 describe('exportExamResultsCsv', () => {
@@ -285,5 +312,47 @@ describe('exportExamResultsCsv', () => {
     const { teacher, exam } = await setupSubmitted();
     const releasedOnly = await gradingService.exportExamResultsCsv(teacher, exam.id, { status: 'RELEASED' });
     assert.equal(releasedOnly.count, 0);
+  });
+
+  it('ใบที่ยังทำอยู่ (IN_PROGRESS) → ช่องคะแนน/วันที่เว้นว่าง', async () => {
+    const { teacher, exam } = await setupSubmitted();
+    const inProgress = await createStudent({ fullName: 'ยังไม่ส่ง' });
+    await createSubmission(exam, inProgress, { status: 'IN_PROGRESS' });
+
+    const result = await gradingService.exportExamResultsCsv(teacher, exam.id);
+    assert.equal(result.count, 2);
+    assert.ok(result.content.includes('กำลังทำ'));
+  });
+});
+
+describe('recalculateSubmission', () => {
+  it('ไม่พบใบส่ง → 404', async () => {
+    await expectApiError(recalculateSubmission('11111111-1111-1111-1111-111111111111'), 404);
+  });
+
+  it('ข้อสอบที่ยังไม่มีข้อคำถาม → คะแนนเต็ม 0 และเปอร์เซ็นต์ 0', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const student = await createStudent();
+    const submission = await createSubmission(exam, student, {
+      status: 'SUBMITTED',
+      submittedAt: new Date(),
+    });
+
+    const updated = await recalculateSubmission(submission.id);
+    assert.equal(Number(updated.percent), 0);
+    assert.equal(Number(updated.totalScore), 0);
+    assert.equal(updated.grade, null);
+  });
+
+  it('ใบที่ปล่อยผลแล้ว → คงสถานะ RELEASED ไว้', async () => {
+    const { exam, student } = await setupSubmitted();
+    const released = await prisma.submission.update({
+      where: { examId_studentId: { examId: exam.id, studentId: student.id } },
+      data: { status: 'RELEASED', releasedAt: new Date() },
+    });
+
+    const updated = await recalculateSubmission(released.id);
+    assert.equal(updated.status, 'RELEASED');
   });
 });

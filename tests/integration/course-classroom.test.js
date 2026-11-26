@@ -9,6 +9,7 @@ import {
   createStudent,
   createTeacher,
   enroll,
+  uniqueEmail,
 } from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
 import * as courseService from '../../src/services/course.service.js';
@@ -279,6 +280,80 @@ describe('classroom service', () => {
     assert.equal(result.content.charCodeAt(0), 0xfeff);
     assert.ok(result.content.includes('เด็กดี'));
     assert.ok(result.content.includes('S999'));
+  });
+
+  it('CSV แสดงสถานะ "ระงับ" ของนักเรียนที่ถูกปิดบัญชี', async () => {
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const student = await createStudent({ fullName: 'ถูกระงับ', isActive: false });
+    await enroll(student, classroom);
+
+    const result = await classroomService.exportClassroomStudentsCsv(teacher, classroom.id);
+    assert.ok(result.content.includes('ระงับ'));
+  });
+
+  it('listClassrooms กรองตาม courseId', async () => {
+    const teacher = await createTeacher();
+    const course = await createCourse(teacher);
+    await createClassroom(teacher, { name: 'ในวิชา', courseId: course.id });
+    await createClassroom(teacher, { name: 'ลอย' });
+
+    const { items } = await classroomService.listClassrooms(teacher, { courseId: course.id });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].name, 'ในวิชา');
+  });
+
+  it('เอาออกจากห้องเรียนกลาง (removeStudentFromClassroom) ไม่พบนักเรียน → 404', async () => {
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const stranger = await createStudent();
+
+    await expectApiError(
+      classroomService.removeStudentFromClassroom(teacher, classroom.id, stranger.id),
+      404,
+      /ไม่พบนักเรียน/,
+    );
+  });
+
+  it('อัปเดตนักเรียนแก้ทีละฟิลด์ (ชื่อ / อีเมล / รหัส / สถานะ)', async () => {
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const student = await createStudent({ fullName: 'เดิม' });
+    await enroll(student, classroom);
+
+    const renamed = await classroomService.updateStudent(teacher, student.id, { fullName: 'ใหม่' });
+    assert.equal(renamed.fullName, 'ใหม่');
+    assert.equal(renamed.email, student.email);
+
+    const newEmail = uniqueEmail('newmail');
+    assert.equal(
+      (await classroomService.updateStudent(teacher, student.id, { email: newEmail })).email,
+      newEmail,
+    );
+    assert.equal(
+      (await classroomService.updateStudent(teacher, student.id, { studentCode: 'S777' })).studentCode,
+      'S777',
+    );
+    assert.equal(
+      (await classroomService.updateStudent(teacher, student.id, { isActive: false })).isActive,
+      false,
+    );
+  });
+
+  it('ADMIN เห็นห้องเรียน/นักเรียนของทุกคน และจัดการข้ามครูได้', async () => {
+    const { createAdmin } = await import('../helpers/fixtures.js');
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const student = await createStudent();
+    await enroll(student, classroom);
+    const admin = await createAdmin();
+
+    assert.equal((await classroomService.listClassrooms(admin)).items.length, 1);
+    assert.equal((await classroomService.listTeacherStudents(admin)).items.length, 1);
+    assert.equal((await classroomService.assertStudentOfTeacher(admin, student.id)).id, student.id);
+
+    const removed = await classroomService.removeStudentFromTeacherClassrooms(admin, student.id);
+    assert.equal(removed.removedFromClassrooms, 1);
   });
 
   it('ห้องเรียนของครูคนอื่น → 403', async () => {

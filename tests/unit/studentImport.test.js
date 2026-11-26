@@ -182,3 +182,33 @@ describe('readStudentRosterFile', () => {
     await assert.rejects(() => readStudentRosterFile(Buffer.from('x'), 'roster.txt'), /รองรับเฉพาะไฟล์/);
   });
 });
+
+describe('rowsToStudents — ขอบเขตข้อมูล', () => {
+  it('หัวตารางมีเซลล์ว่าง/null → มองเป็นบรรทัดว่าง', () => {
+    const { students, errors } = rowsToStudents([[null, undefined]]);
+    assert.deepEqual(students, []);
+    assert.equal(errors[0].message, 'ไม่พบหัวตารางในไฟล์');
+  });
+
+  it('เซลล์ชื่อเป็น null → ถือว่าไม่ได้ระบุชื่อ', () => {
+    const { errors } = rowsToStudents([HEADER, ['S1', null, 'a@b.com', '']]);
+    assert.match(errors[0].message, /ชื่อ-นามสกุล/);
+  });
+
+  it('ไม่มีคอลัมน์เสริม (รหัสนักเรียน/รหัสผ่าน) ก็ยังอ่านได้', () => {
+    const { students, errors } = rowsToStudents([
+      ['ชื่อ-นามสกุล', 'อีเมล'],
+      ['สมชาย', 'a@b.com'],
+    ]);
+    assert.deepEqual(errors, []);
+    assert.equal(students.length, 1);
+    assert.equal(students[0].studentCode, null);
+    assert.equal(students[0].password, null);
+  });
+
+  it('อีเมลยาวเกิน 200 ตัวอักษร → error', () => {
+    const longEmail = `${'a'.repeat(200)}@b.com`;
+    const { errors } = rowsToStudents([HEADER, ['S1', 'A', longEmail, '']]);
+    assert.match(errors[0].message, /อีเมลยาวเกิน/);
+  });
+});

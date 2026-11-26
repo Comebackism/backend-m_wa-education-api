@@ -96,6 +96,25 @@ describe('createExam / listExams / getExamDetail', () => {
     const exam = await createExam(teacher);
     await expectApiError(examService.getExamDetail(await createTeacher(), exam.id), 403);
   });
+
+  it('ADMIN เปิดรายละเอียดข้อสอบของครูคนอื่นได้', async () => {
+    const { createAdmin } = await import('../helpers/fixtures.js');
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const detail = await examService.getExamDetail(await createAdmin(), exam.id);
+    assert.equal(detail.id, exam.id);
+  });
+
+  it('listExams กรองตาม courseId ได้', async () => {
+    const teacher = await createTeacher();
+    const course = await createCourse(teacher);
+    await createExam(teacher, { title: 'ในวิชา', courseId: course.id });
+    await createExam(teacher, { title: 'ลอย' });
+
+    const { items } = await examService.listExams(teacher, { courseId: course.id });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].title, 'ในวิชา');
+  });
 });
 
 describe('updateExam / deleteExam', () => {
@@ -108,6 +127,34 @@ describe('updateExam / deleteExam', () => {
     });
     assert.equal(updated.title, 'ใหม่');
     assert.deepEqual(updated.allowedIpRanges, ['10.0.0.0/8']);
+  });
+
+  it('แก้ทีละฟิลด์ (description / courseId / timeLimit / displayMode / questionsPerPage)', async () => {
+    const teacher = await createTeacher();
+    const course = await createCourse(teacher);
+    const exam = await createExam(teacher);
+
+    assert.equal(
+      (await examService.updateExam(teacher, exam.id, { description: 'อธิบาย' })).description,
+      'อธิบาย',
+    );
+    assert.equal(
+      (await examService.updateExam(teacher, exam.id, { courseId: course.id })).courseId,
+      course.id,
+    );
+    assert.equal(
+      (await examService.updateExam(teacher, exam.id, { timeLimitMinutes: 45 })).timeLimitMinutes,
+      45,
+    );
+    assert.equal(
+      (await examService.updateExam(teacher, exam.id, { defaultDisplayMode: 'PAGINATED' }))
+        .defaultDisplayMode,
+      'PAGINATED',
+    );
+    assert.equal(
+      (await examService.updateExam(teacher, exam.id, { questionsPerPage: 5 })).questionsPerPage,
+      5,
+    );
   });
 
   it('ลบข้อสอบที่มีการส่งแล้ว → 409 แต่ force ได้', async () => {
@@ -217,6 +264,39 @@ describe('ข้อคำถาม (addQuestion / update / delete / reorder)', (
     await examService.deleteQuestion(teacher, exam.id, first.id);
     const stored = await prisma.exam.findUnique({ where: { id: exam.id } });
     assert.equal(Number(stored.totalsPoints), 4);
+  });
+
+  it('แก้ข้ออัตนัย (ไม่ส่ง choices) ได้ และคงคะแนนเดิมไว้', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const question = await addTextQuestion(exam, { prompt: 'เดิม', points: 2 });
+
+    const updated = await examService.updateQuestion(teacher, exam.id, question.id, { prompt: 'ใหม่' });
+    assert.equal(updated.prompt, 'ใหม่');
+    assert.equal(Number(updated.points), 2);
+  });
+
+  it('แก้ข้อปรนัยโดยไม่ส่ง choices → ใช้ตัวเลือกเดิม (ไม่ลบทิ้ง)', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const question = await addChoiceQuestion(exam, { points: 2 });
+
+    const updated = await examService.updateQuestion(teacher, exam.id, question.id, { points: 5 });
+    assert.equal(updated.choices.length, 4);
+    assert.equal(Number(updated.points), 5);
+  });
+
+  it('แก้/ลบข้อที่ไม่มีอยู่ → 404', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const missing = '11111111-1111-1111-1111-111111111111';
+
+    await expectApiError(
+      examService.updateQuestion(teacher, exam.id, missing, { points: 1 }),
+      404,
+      /ไม่พบข้อสอบข้อนี้/,
+    );
+    await expectApiError(examService.deleteQuestion(teacher, exam.id, missing), 404, /ไม่พบข้อสอบข้อนี้/);
   });
 
   it('เพิ่มข้อแล้วคิดคะแนนใบที่ส่งแล้วใหม่ด้วย (recalculateExamTotals)', async () => {

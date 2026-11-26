@@ -12,7 +12,7 @@ import {
 } from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
 import * as authService from '../../src/services/auth.service.js';
-import { hashToken, verifyAccessToken, verifyRefreshToken } from '../../src/lib/jwt.js';
+import { hashToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from '../../src/lib/jwt.js';
 import { verifyPassword } from '../../src/lib/password.js';
 
 /** เทสต์ auth service กับฐานข้อมูลจริง: สมัคร / ล็อกอิน / refresh / เปลี่ยนรหัสผ่าน / ออกจากระบบ */
@@ -96,6 +96,16 @@ describe('registerStudent', () => {
       /รหัสนักเรียนนี้ถูกใช้งานแล้ว/,
     );
   });
+
+  it('อีเมลซ้ำ → 409', async () => {
+    const email = uniqueEmail('student');
+    await authService.registerStudent({ email, password: DEFAULT_PASSWORD, fullName: 'คนแรก' }, agent);
+    await expectApiError(
+      authService.registerStudent({ email, password: DEFAULT_PASSWORD, fullName: 'คนที่สอง' }, agent),
+      409,
+      /ถูกใช้งานแล้ว/,
+    );
+  });
 });
 
 describe('login', () => {
@@ -153,6 +163,18 @@ describe('login', () => {
       assert.equal(user.id, admin.id, role);
     }
   });
+
+  it('ไม่ส่ง userAgent → เก็บ refresh token เป็น null', async () => {
+    const teacher = await createTeacher();
+    const { user } = await authService.login({
+      email: teacher.email,
+      password: DEFAULT_PASSWORD,
+      role: 'TEACHER',
+    });
+
+    const stored = await prisma.refreshToken.findFirst({ where: { userId: user.id } });
+    assert.equal(stored.userAgent, null);
+  });
 });
 
 describe('refresh', () => {
@@ -171,6 +193,20 @@ describe('refresh', () => {
 
   it('token ที่ปลอมขึ้นมา → 401', async () => {
     await expectApiError(authService.refresh('a'.repeat(40), agent), 401, /ไม่ถูกต้อง/);
+  });
+
+  it('refresh token ที่ชี้ผู้ใช้ที่ถูกลบ → 401', async () => {
+    const teacher = await createTeacher();
+    const ghost = signRefreshToken({ id: '11111111-1111-1111-1111-111111111111', role: 'TEACHER' });
+    await prisma.refreshToken.create({
+      data: {
+        userId: teacher.id,
+        tokenHash: hashToken(ghost),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+
+    await expectApiError(authService.refresh(ghost, agent), 401, /ไม่พบผู้ใช้/);
   });
 });
 

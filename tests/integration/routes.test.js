@@ -302,6 +302,15 @@ describe('exam routes', () => {
     assert.equal(real.data.imported, 1);
   });
 
+  it('questions/import ไม่แนบไฟล์ → 400', async () => {
+    const { token } = await teacherToken();
+    const { examId } = await makeExam(token);
+
+    const res = await server.client.post(`/api/exams/${examId}/questions/import`, {}, { token });
+    assert.equal(res.status, 400);
+    assert.match(res.data.error.message, /ต้องแนบไฟล์/);
+  });
+
   it('cutoffs: put แล้ว get กลับ', async () => {
     const { token } = await teacherToken();
     const { examId } = await makeExam(token);

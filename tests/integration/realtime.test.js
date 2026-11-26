@@ -144,6 +144,18 @@ describe('connection', () => {
     assert.equal(pong.pong, true);
     socket.close();
   });
+
+  it('ping แบบไม่มี ack → ยิง event "pong" กลับ', async () => {
+    const teacher = await createTeacher();
+    const socket = connect({ token: signAccessToken(teacher) });
+    await once(socket, 'connected');
+
+    const received = once(socket, 'pong');
+    socket.emit('ping');
+    const payload = await received;
+    assert.equal(payload.pong, true);
+    socket.close();
+  });
 });
 
 describe('emitToUser / emitToUsers', () => {

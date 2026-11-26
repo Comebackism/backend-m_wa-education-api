@@ -271,6 +271,15 @@ describe('submitSubmission', () => {
     const submission = await submissionService.startSubmission(exam.id, student.id);
     await expectApiError(submissionService.submitSubmission(submission.id, (await createStudent()).id), 403);
   });
+
+  it('ส่งพร้อม displayMode → บันทึกทับค่าเดิม', async () => {
+    const { student, exam } = await setup();
+    const submission = await submissionService.startSubmission(exam.id, student.id);
+
+    await submissionService.submitSubmission(submission.id, student.id, { displayMode: 'PAGINATED' });
+    const stored = await prisma.submission.findUnique({ where: { id: submission.id } });
+    assert.equal(stored.displayMode, 'PAGINATED');
+  });
 });
 
 describe('getStudentSubmission', () => {

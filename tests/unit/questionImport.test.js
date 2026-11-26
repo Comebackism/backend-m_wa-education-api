@@ -189,3 +189,34 @@ describe('readQuestionImportFile', () => {
     await assert.rejects(() => readQuestionImportFile(Buffer.from('x'), 'q.txt'), /รองรับเฉพาะไฟล์/);
   });
 });
+
+describe('rowsToQuestions — ขอบเขตข้อมูล', () => {
+  it('หัวตารางมีเซลล์ว่าง/null → มองเป็นบรรทัดว่าง', () => {
+    const { questions, errors } = rowsToQuestions([[null, undefined]]);
+    assert.deepEqual(questions, []);
+    assert.equal(errors[0].message, 'ไม่พบหัวตารางในไฟล์');
+  });
+
+  it('เซลล์โจทย์เป็น null → ถือว่าไม่ได้ระบุโจทย์', () => {
+    const { errors } = rowsToQuestions([HEADER, ['', null, '1', '', '', '', '', '', '', '']]);
+    assert.match(errors[0].message, /ต้องระบุโจทย์/);
+  });
+
+  it('คะแนนเกินเพดาน → error', () => {
+    const { errors } = rowsToQuestions([HEADER, ['', 'x', '1001', '', '', '', '', '', '', '']]);
+    assert.match(errors[0].message, /ไม่เกิน 1000/);
+  });
+
+  it('โจทย์ยาวเกินกำหนด → error', () => {
+    const { errors } = rowsToQuestions([HEADER, ['', 'x'.repeat(20001), '1', '', '', '', '', '', '', '']]);
+    assert.match(errors[0].message, /โจทย์ยาวเกิน/);
+  });
+
+  it('คำตอบอ้างอิง/คำอธิบายยาวเกินกำหนด → error', () => {
+    const longRef = rowsToQuestions([HEADER, ['', 'x', '1', '', '', '', '', '', 'r'.repeat(20001), '']]);
+    assert.match(longRef.errors[0].message, /คำตอบอ้างอิงยาวเกิน/);
+
+    const longExp = rowsToQuestions([HEADER, ['', 'x', '1', '', '', '', '', '', '', 'e'.repeat(20001)]]);
+    assert.match(longExp.errors[0].message, /คำอธิบายยาวเกิน/);
+  });
+});

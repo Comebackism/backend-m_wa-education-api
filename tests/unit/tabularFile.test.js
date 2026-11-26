@@ -64,4 +64,8 @@ describe('parseTabularFileRows', () => {
       /อ่านไฟล์ Excel ไม่สำเร็จ/,
     );
   });
+
+  it('ไม่ระบุชื่อไฟล์ → ApiError (นามสกุลว่าง)', async () => {
+    await assert.rejects(() => parseTabularFileRows(Buffer.from('a')), /รองรับเฉพาะไฟล์/);
+  });
 });

@@ -61,6 +61,18 @@ describe('validate middleware', () => {
     assert.deepEqual(query(req), { q: 'abc' });
   });
 
+  it('ไม่มี req.body เลย → ถือเป็น {} แล้วผ่าน', () => {
+    const req = {};
+    validate({ body: z.object({ name: z.string().optional() }) })(req, makeRes(), mock.fn());
+    assert.deepEqual(req.body, {});
+  });
+
+  it('ไม่มี req.query เลย → ถือเป็น {} แล้วผ่าน', () => {
+    const req = {};
+    validate({ query: z.object({ q: z.string().optional() }) })(req, makeRes(), mock.fn());
+    assert.deepEqual(req.validatedQuery, {});
+  });
+
   it('query ผิด → field ขึ้นต้นด้วย "query."', () => {
     assert.throws(
       () =>
