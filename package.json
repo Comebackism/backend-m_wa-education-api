@@ -27,7 +27,9 @@
     "test:integration": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/integration/**/*.test.js\"",
     "test": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/**/*.test.js\"",
     "test:coverage": "node --import ./tests/setup-env.js --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=\"src/**\" \"tests/**/*.test.js\"",
-    "test:ci": "node scripts/ci-test.mjs"
+    "test:ci": "node scripts/ci-test.mjs",
+    "test:api": "playwright test",
+    "test:api:report": "playwright test --reporter=html"
   },
   "keywords": [
     "exam",
@@ -59,6 +61,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
     "eslint": "^10.15.0",
     "globals": "^17.14.0",
     "prettier": "^3.10.1",

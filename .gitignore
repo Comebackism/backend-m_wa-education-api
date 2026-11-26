@@ -17,6 +17,12 @@ npm-debug.log*
 reports/
 coverage/
 
+# playwright (เทสต์ API — npm run test:api)
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # editor / os
 .vscode/
 .idea/

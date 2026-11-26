@@ -35,4 +35,12 @@ export default [
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  {
+    // Playwright บังคับให้พารามิเตอร์ตัวแรกของ fixture เป็น object destructuring เสมอ
+    // แม้ fixture นั้นไม่ต้องพึ่ง fixture อื่น (เช่น dbReset/dbTeardown ที่เป็น auto)
+    files: ['tests/api/**/*.js'],
+    rules: {
+      'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
+    },
+  },
 ];
