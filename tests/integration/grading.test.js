@@ -44,7 +44,7 @@ async function setupSubmitted() {
 describe('listExamSubmissions', () => {
   it('บอกจำนวนข้อที่ยังไม่ตรวจและ needsGrading', async () => {
     const { teacher, exam, student } = await setupSubmitted();
-    const list = await gradingService.listExamSubmissions(teacher, exam.id);
+    const { items: list } = await gradingService.listExamSubmissions(teacher, exam.id);
     assert.equal(list.length, 1);
     assert.equal(list[0].ungradedCount, 1);
     assert.equal(list[0].needsGrading, true);
@@ -55,7 +55,7 @@ describe('listExamSubmissions', () => {
     const { teacher, exam, textAnswer } = await setupSubmitted();
     await gradingService.gradeAnswer(teacher, textAnswer.id, { isCorrect: true, awardedPoints: 2 });
 
-    const list = await gradingService.listExamSubmissions(teacher, exam.id);
+    const { items: list } = await gradingService.listExamSubmissions(teacher, exam.id);
     assert.equal(list[0].ungradedCount, 0);
     assert.equal(list[0].needsGrading, false);
   });
@@ -63,11 +63,11 @@ describe('listExamSubmissions', () => {
   it('กรองตามสถานะได้', async () => {
     const { teacher, exam } = await setupSubmitted();
     assert.equal(
-      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'SUBMITTED' })).length,
+      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'SUBMITTED' })).items.length,
       1,
     );
     assert.equal(
-      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'RELEASED' })).length,
+      (await gradingService.listExamSubmissions(teacher, exam.id, { status: 'RELEASED' })).items.length,
       0,
     );
   });

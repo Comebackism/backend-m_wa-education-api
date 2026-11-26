@@ -1,29 +1,42 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { toNumber } from '../lib/serialize.js';
+import { parsePagination, runPaginated } from '../lib/pagination.js';
 
 /**
  * ฝั่งนักเรียน — ดูผลสอบ
  * กฎ "ไม่รั่ว": เห็นคะแนน/เฉลย/หมายเหตุของครู เฉพาะเมื่อสถานะ = RELEASED (ครูกดปล่อยผลแล้ว)
  */
 
-export async function listStudentResults(studentId, { examId } = {}) {
-  const submissions = await prisma.submission.findMany({
-    where: { studentId, status: { in: ['SUBMITTED', 'GRADED', 'RELEASED'] }, ...(examId ? { examId } : {}) },
-    include: {
-      exam: {
-        select: {
-          id: true,
-          title: true,
-          totalsPoints: true,
-          course: { select: { code: true, title: true } },
-        },
-      },
-    },
-    orderBy: [{ submittedAt: 'desc' }],
-  });
+export async function listStudentResults(studentId, { examId, page, limit } = {}) {
+  const where = {
+    studentId,
+    status: { in: ['SUBMITTED', 'GRADED', 'RELEASED'] },
+    ...(examId ? { examId } : {}),
+  };
 
-  return submissions.map((submission) => {
+  const { items: submissions, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.submission.findMany({
+        where,
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              totalsPoints: true,
+              course: { select: { code: true, title: true } },
+            },
+          },
+        },
+        orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
+        ...pageArgs,
+      }),
+    () => prisma.submission.count({ where }),
+  );
+
+  const results = submissions.map((submission) => {
     const released = submission.status === 'RELEASED';
     return {
       submissionId: submission.id,
@@ -44,6 +57,8 @@ export async function listStudentResults(studentId, { examId } = {}) {
         : {}),
     };
   });
+
+  return { items: results, pagination };
 }
 
 export async function getStudentResult(studentId, submissionId) {

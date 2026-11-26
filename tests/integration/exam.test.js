@@ -59,10 +59,10 @@ describe('createExam / listExams / getExamDetail', () => {
     await createExam(teacher, { title: 'เปิดแล้ว', status: 'PUBLISHED' });
     await createExam(stranger, { title: 'ของคนอื่น', status: 'PUBLISHED' });
 
-    const mine = await examService.listExams(teacher);
+    const { items: mine } = await examService.listExams(teacher);
     assert.equal(mine.length, 2);
 
-    const published = await examService.listExams(teacher, { status: 'PUBLISHED' });
+    const { items: published } = await examService.listExams(teacher, { status: 'PUBLISHED' });
     assert.equal(published.length, 1);
     assert.equal(published[0].title, 'เปิดแล้ว');
   });
@@ -72,7 +72,7 @@ describe('createExam / listExams / getExamDetail', () => {
     const admin = await createAdmin();
     await createExam(await createTeacher(), { title: 'A' });
     await createExam(await createTeacher(), { title: 'B' });
-    assert.equal((await examService.listExams(admin)).length, 2);
+    assert.equal((await examService.listExams(admin)).items.length, 2);
   });
 
   it('getExamDetail แนบสถิติการส่ง', async () => {
@@ -471,7 +471,7 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
 
   it('แสดงข้อสอบที่เปิดสอบและมอบหมายให้ห้องของนักเรียน', async () => {
     const { exam, student } = await setup();
-    const exams = await examService.listStudentExams(student.id);
+    const { items: exams } = await examService.listStudentExams(student.id);
     assert.equal(exams.length, 1);
     assert.equal(exams[0].id, exam.id);
     assert.equal(exams[0].canStart, true);
@@ -483,7 +483,7 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
     const classroom = await createClassroom(teacher);
     await createPublishedExam(teacher, classroom);
     const outsider = await createStudent();
-    assert.deepEqual(await examService.listStudentExams(outsider.id), []);
+    assert.deepEqual((await examService.listStudentExams(outsider.id)).items, []);
   });
 
   it('หลังส่งแล้ว canStart = false และยังไม่โชว์คะแนนจนกว่าจะปล่อยผล', async () => {
@@ -499,7 +499,7 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
         grade: 'F',
       },
     });
-    const [row] = await examService.listStudentExams(student.id);
+    const [row] = (await examService.listStudentExams(student.id)).items;
     assert.equal(row.canStart, false);
     assert.equal(row.mySubmission.status, 'SUBMITTED');
     assert.equal('totalScore' in row.mySubmission, false);
@@ -519,7 +519,7 @@ describe('ฝั่งนักเรียน (listStudentExams / getStudentExa
         grade: 'B+',
       },
     });
-    const [row] = await examService.listStudentExams(student.id);
+    const [row] = (await examService.listStudentExams(student.id)).items;
     assert.equal(row.mySubmission.totalScore, 3);
     assert.equal(row.mySubmission.grade, 'B+');
   });

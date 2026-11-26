@@ -40,6 +40,35 @@ const pathParam = (name, description) => ({
 
 const body = (schema, description) => ({ required: true, description, content: json(schema) });
 
+/**
+ * พารามิเตอร์ ?page= & ?limit= ของ list endpoint
+ *
+ * ทั้งคู่เป็น optional: ไม่ส่งมา = คืนทั้งหมด (สัญญาเดิมของ frontend)
+ * ส่งมา = แบ่งหน้า และมี `pagination` ใน response
+ */
+const paginationParams = [
+  {
+    name: 'page',
+    in: 'query',
+    required: false,
+    description: 'ลำดับหน้า เริ่มที่ 1 (ส่งเฉพาะเมื่อต้องการแบ่งหน้า)',
+    schema: { type: 'integer', minimum: 1, default: 1 },
+  },
+  {
+    name: 'limit',
+    in: 'query',
+    required: false,
+    description: 'จำนวนรายการต่อหน้า 1–100 (ส่งเฉพาะเมื่อต้องการแบ่งหน้า)',
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  },
+];
+
+/** เติม `pagination` (optional) เข้า response schema ของ list endpoint */
+const withPaginationMeta = (schema) => ({
+  ...schema,
+  properties: { ...schema.properties, pagination: ref('Pagination') },
+});
+
 export const openApiDocument = {
   openapi: '3.0.3',
   info: {
@@ -210,14 +239,18 @@ export const openApiDocument = {
             description: 'ค้นหาจากรหัสหรือชื่อวิชา',
             schema: { type: 'string' },
           },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายการรายวิชา', {
-            type: 'object',
-            required: ['courses'],
-            properties: { courses: { type: 'array', items: ref('Course') } },
-          }),
-          ...pick(401, 403, 500),
+          ...ok(
+            'รายการรายวิชา (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['courses'],
+              properties: { courses: { type: 'array', items: ref('Course') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 500),
         },
       },
       post: {
@@ -296,14 +329,18 @@ export const openApiDocument = {
         summary: 'ห้องเรียนทั้งหมดของครู (teacher)',
         parameters: [
           { name: 'courseId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายการห้องเรียน', {
-            type: 'object',
-            required: ['classrooms'],
-            properties: { classrooms: { type: 'array', items: ref('Classroom') } },
-          }),
-          ...pick(401, 403, 500),
+          ...ok(
+            'รายการห้องเรียน (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['classrooms'],
+              properties: { classrooms: { type: 'array', items: ref('Classroom') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 500),
         },
       },
       post: {
@@ -367,13 +404,17 @@ export const openApiDocument = {
       get: {
         tags: ['Classrooms'],
         summary: 'รายชื่อนักเรียนในห้อง (teacher)',
+        parameters: [...paginationParams],
         responses: {
-          ...ok('รายชื่อนักเรียน', {
-            type: 'object',
-            required: ['students'],
-            properties: { students: { type: 'array', items: ref('StudentInClassroom') } },
-          }),
-          ...pick(401, 403, 404, 500),
+          ...ok(
+            'รายชื่อนักเรียน (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['students'],
+              properties: { students: { type: 'array', items: ref('StudentInClassroom') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 404, 500),
         },
       },
       post: {
@@ -512,14 +553,18 @@ export const openApiDocument = {
             description: 'ค้นหาจากชื่อ / อีเมล / รหัสนักเรียน',
             schema: { type: 'string' },
           },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายชื่อนักเรียน', {
-            type: 'object',
-            required: ['students'],
-            properties: { students: { type: 'array', items: ref('TeacherStudent') } },
-          }),
-          ...pick(401, 403, 500),
+          ...ok(
+            'รายชื่อนักเรียน (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['students'],
+              properties: { students: { type: 'array', items: ref('TeacherStudent') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 500),
         },
       },
       post: {
@@ -623,13 +668,17 @@ export const openApiDocument = {
             schema: { type: 'string', enum: ['DRAFT', 'PUBLISHED', 'CLOSED'] },
           },
           { name: 'courseId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายการข้อสอบ', {
-            type: 'object',
-            required: ['exams'],
-            properties: { exams: { type: 'array', items: ref('Exam') } },
-          }),
+          ...ok(
+            'รายการข้อสอบ (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['exams'],
+              properties: { exams: { type: 'array', items: ref('Exam') } },
+            }),
+          ),
           ...pick(400, 401, 403, 500),
         },
       },
@@ -1022,13 +1071,17 @@ export const openApiDocument = {
             required: false,
             schema: { type: 'string', enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'RELEASED'] },
           },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายการการส่งข้อสอบ', {
-            type: 'object',
-            required: ['submissions'],
-            properties: { submissions: { type: 'array', items: ref('SubmissionListItem') } },
-          }),
+          ...ok(
+            'รายการการส่งข้อสอบ (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['submissions'],
+              properties: { submissions: { type: 'array', items: ref('SubmissionListItem') } },
+            }),
+          ),
           ...pick(400, 401, 403, 404, 500),
         },
       },
@@ -1144,13 +1197,17 @@ export const openApiDocument = {
       get: {
         tags: ['Student — My'],
         summary: 'ห้องเรียนที่นักเรียนคนนี้อยู่ (student)',
+        parameters: [...paginationParams],
         responses: {
-          ...ok('รายการห้องเรียน', {
-            type: 'object',
-            required: ['classrooms'],
-            properties: { classrooms: { type: 'array', items: ref('Classroom') } },
-          }),
-          ...pick(401, 403, 500),
+          ...ok(
+            'รายการห้องเรียน (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['classrooms'],
+              properties: { classrooms: { type: 'array', items: ref('Classroom') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 500),
         },
       },
     },
@@ -1159,13 +1216,17 @@ export const openApiDocument = {
         tags: ['Student — My'],
         summary: 'ข้อสอบที่ได้รับมอบหมาย (student)',
         description: 'โชว์คะแนน/เกรดของตัวเองเฉพาะเมื่อ `mySubmission.status = RELEASED`',
+        parameters: [...paginationParams],
         responses: {
-          ...ok('รายการข้อสอบ', {
-            type: 'object',
-            required: ['exams'],
-            properties: { exams: { type: 'array', items: ref('StudentExamListItem') } },
-          }),
-          ...pick(401, 403, 500),
+          ...ok(
+            'รายการข้อสอบ (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['exams'],
+              properties: { exams: { type: 'array', items: ref('StudentExamListItem') } },
+            }),
+          ),
+          ...pick(400, 401, 403, 500),
         },
       },
     },
@@ -1300,13 +1361,17 @@ export const openApiDocument = {
         description: 'ยังไม่ปล่อยผล → ไม่มีฟิลด์คะแนน/เกรด และ `pendingTeacherAction = true`',
         parameters: [
           { name: 'examId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+          ...paginationParams,
         ],
         responses: {
-          ...ok('รายการผลสอบ', {
-            type: 'object',
-            required: ['results'],
-            properties: { results: { type: 'array', items: ref('StudentResultListItem') } },
-          }),
+          ...ok(
+            'รายการผลสอบ (มี `pagination` เมื่อส่ง ?page/?limit)',
+            withPaginationMeta({
+              type: 'object',
+              required: ['results'],
+              properties: { results: { type: 'array', items: ref('StudentResultListItem') } },
+            }),
+          ),
           ...pick(400, 401, 403, 500),
         },
       },
@@ -1344,6 +1409,21 @@ export const openApiDocument = {
       QuestionType: { type: 'string', enum: ['MULTIPLE_CHOICE', 'SHORT_ANSWER', 'LONG_ANSWER'] },
       DisplayMode: { type: 'string', enum: ['SINGLE_PAGE', 'PAGINATED'] },
       SubmissionStatus: { type: 'string', enum: ['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'RELEASED'] },
+
+      Pagination: {
+        type: 'object',
+        description:
+          'meta การแบ่งหน้า — ปรากฏเฉพาะเมื่อส่ง `?page` หรือ `?limit` มาเท่านั้น (ไม่ส่ง = ได้ทั้งหมด ไม่มี field นี้)',
+        required: ['page', 'limit', 'total', 'totalPages', 'hasNext', 'hasPrev'],
+        properties: {
+          page: { type: 'integer', example: 1 },
+          limit: { type: 'integer', example: 20 },
+          total: { type: 'integer', example: 42, description: 'จำนวนทั้งหมดที่ตรงเงื่อนไข (ไม่ใช่แค่ในหน้านี้)' },
+          totalPages: { type: 'integer', example: 3 },
+          hasNext: { type: 'boolean', example: true },
+          hasPrev: { type: 'boolean', example: false },
+        },
+      },
 
       Error: {
         type: 'object',

@@ -26,7 +26,7 @@ describe('course service', () => {
     await courseService.createCourse(teacher, { code: 'MATH', title: 'คณิตศาสตร์' });
     await courseService.createCourse(stranger, { code: 'THAI', title: 'ภาษาไทย' });
 
-    const mine = await courseService.listCourses(teacher);
+    const { items: mine } = await courseService.listCourses(teacher);
     assert.equal(mine.length, 1);
     assert.equal(mine[0].code, 'MATH');
   });
@@ -35,7 +35,7 @@ describe('course service', () => {
     const teacher = await createTeacher();
     await courseService.createCourse(teacher, { code: 'SCI101', title: 'วิทยาศาสตร์' });
     await courseService.createCourse(teacher, { code: 'ART', title: 'ศิลปะ' });
-    const found = await courseService.listCourses(teacher, { q: 'sci' });
+    const { items: found } = await courseService.listCourses(teacher, { q: 'sci' });
     assert.equal(found.length, 1);
     assert.equal(found[0].code, 'SCI101');
   });
@@ -114,7 +114,7 @@ describe('classroom service', () => {
     await enroll(await createStudent(), classroom);
     await enroll(await createAdmin(), classroom);
 
-    const students = await classroomService.listStudents(classroom.id);
+    const { items: students } = await classroomService.listStudents(classroom.id);
     assert.equal(students.length, 1);
     assert.equal(students[0].role, 'STUDENT');
   });
@@ -154,7 +154,7 @@ describe('classroom service', () => {
     await enroll(student, first);
     await enroll(student, second);
 
-    const classrooms = await classroomService.listStudentClassrooms(student.id);
+    const { items: classrooms } = await classroomService.listStudentClassrooms(student.id);
     assert.equal(classrooms.length, 2);
   });
 
@@ -167,7 +167,7 @@ describe('classroom service', () => {
     await enroll(student, second);
     await enroll(await createStudent({ fullName: 'สมหญิง' }), first);
 
-    const students = await classroomService.listTeacherStudents(teacher);
+    const { items: students } = await classroomService.listTeacherStudents(teacher);
     assert.equal(students.length, 2);
     const somchai = students.find((item) => item.fullName === 'สมชาย');
     assert.equal(somchai.classrooms.length, 2);
@@ -179,10 +179,10 @@ describe('classroom service', () => {
     await enroll(await createStudent({ fullName: 'อลิสา ใจดี', studentCode: 'A100' }), classroom);
     await enroll(await createStudent({ fullName: 'บอย', email: 'boy.search@test.local' }), classroom);
 
-    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'อลิสา' })).length, 1);
-    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'boy.search' })).length, 1);
-    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'A100' })).length, 1);
-    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'ไม่พบเลย' })).length, 0);
+    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'อลิสา' })).items.length, 1);
+    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'boy.search' })).items.length, 1);
+    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'A100' })).items.length, 1);
+    assert.equal((await classroomService.listTeacherStudents(teacher, { q: 'ไม่พบเลย' })).items.length, 0);
   });
 
   it('อัปเดตนักเรียน: รหัสซ้ำ → 409', async () => {

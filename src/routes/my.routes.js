@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, studentOnly } from '../middleware/auth.js';
-import { idParams, uuid } from '../validators/common.js';
-import { prisma } from '../lib/prisma.js';
+import { idParams, uuid, withPagination } from '../validators/common.js';
 import * as examService from '../services/exam.service.js';
 import * as submissionService from '../services/submission.service.js';
 import * as resultService from '../services/result.service.js';
+import * as classroomService from '../services/classroom.service.js';
 
 const router = Router();
 
@@ -15,32 +15,18 @@ router.use(authenticate, studentOnly);
 const displayMode = z.enum(['SINGLE_PAGE', 'PAGINATED']);
 
 // ห้องเรียนที่นักเรียนอยู่
-router.get('/classrooms', async (req, res) => {
-  const enrollments = await prisma.enrollment.findMany({
-    where: { studentId: req.user.id },
-    include: {
-      classroom: {
-        include: {
-          course: { select: { id: true, code: true, title: true } },
-          teacher: { select: { id: true, fullName: true } },
-        },
-      },
-    },
-    orderBy: { enrolledAt: 'desc' },
-  });
-
-  res.json({
-    classrooms: enrollments.map((enrollment) => ({
-      ...enrollment.classroom,
-      enrolledAt: enrollment.enrolledAt,
-    })),
-  });
+router.get('/classrooms', validate({ query: withPagination() }), async (req, res) => {
+  const { items: classrooms, pagination } = await classroomService.listStudentClassrooms(
+    req.user.id,
+    req.validatedQuery,
+  );
+  res.json({ classrooms, ...(pagination ? { pagination } : {}) });
 });
 
 // ข้อสอบที่ได้รับมอบหมาย
-router.get('/exams', async (req, res) => {
-  const exams = await examService.listStudentExams(req.user.id);
-  res.json({ exams });
+router.get('/exams', validate({ query: withPagination() }), async (req, res) => {
+  const { items: exams, pagination } = await examService.listStudentExams(req.user.id, req.validatedQuery);
+  res.json({ exams, ...(pagination ? { pagination } : {}) });
 });
 
 // รายละเอียดข้อสอบ (ไม่มีเฉลย) — ตรวจ IP restriction ด้วยถ้าข้อสอบตั้งไว้
@@ -110,9 +96,12 @@ router.post(
 );
 
 // ผลสอบ (เห็นเฉพาะที่ครูกดปล่อยผลแล้ว)
-router.get('/results', validate({ query: z.object({ examId: uuid.optional() }) }), async (req, res) => {
-  const results = await resultService.listStudentResults(req.user.id, req.validatedQuery);
-  res.json({ results });
+router.get('/results', validate({ query: withPagination({ examId: uuid.optional() }) }), async (req, res) => {
+  const { items: results, pagination } = await resultService.listStudentResults(
+    req.user.id,
+    req.validatedQuery,
+  );
+  res.json({ results, ...(pagination ? { pagination } : {}) });
 });
 
 router.get('/results/:submissionId', validate({ params: idParams('submissionId') }), async (req, res) => {

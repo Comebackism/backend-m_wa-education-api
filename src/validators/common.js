@@ -14,8 +14,16 @@ export const booleanQuery = z
   .optional()
   .transform((value) => value === 'true');
 
-/** ?page= & ?limit= พร้อมค่าเริ่มต้น */
+/**
+ * ?page= & ?limit= สำหรับ list endpoint
+ *
+ * ทั้งคู่เป็น optional (ไม่มี default) เพื่อให้แยกได้ว่า "client ไม่ได้ขอแบ่งหน้า"
+ * → endpoint จะคืนทั้งหมดเหมือนพฤติกรรมเดิม
+ */
 export const paginationQuery = {
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 };
+
+/** แทรก paginationQuery เข้า schema ของ query ได้ เช่น z.object({ q, ...paginationQuery }) */
+export const withPagination = (shape = {}) => z.object({ ...shape, ...paginationQuery });

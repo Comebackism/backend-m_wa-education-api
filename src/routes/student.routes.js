@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, teacherOnly } from '../middleware/auth.js';
-import { idParams, optionalQueryString, uuid } from '../validators/common.js';
+import { idParams, optionalQueryString, uuid, withPagination } from '../validators/common.js';
 import * as classroomService from '../services/classroom.service.js';
 
 const router = Router();
@@ -38,9 +38,12 @@ router.get('/template', (req, res) => {
 });
 
 // รายชื่อนักเรียนทั้งหมดของครู (รวมทุกห้องเรียน)
-router.get('/', validate({ query: z.object({ q: optionalQueryString }) }), async (req, res) => {
-  const students = await classroomService.listTeacherStudents(req.user, req.validatedQuery);
-  res.json({ students });
+router.get('/', validate({ query: withPagination({ q: optionalQueryString }) }), async (req, res) => {
+  const { items: students, pagination } = await classroomService.listTeacherStudents(
+    req.user,
+    req.validatedQuery,
+  );
+  res.json({ students, ...(pagination ? { pagination } : {}) });
 });
 
 // ปุ่ม "+" เพิ่มนักเรียน (แนบ classroomId เพื่อเข้าห้องทันที)

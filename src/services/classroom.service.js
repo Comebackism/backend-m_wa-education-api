@@ -4,6 +4,7 @@ import { hashPassword } from '../lib/password.js';
 import { getOwnedClassroom, getOwnedCourse, actorId, isAdminActor } from '../lib/access.js';
 import { toCsv } from '../lib/csv.js';
 import { STUDENT_IMPORT_HEADERS, readStudentRosterFile } from '../lib/studentImport.js';
+import { parsePagination, runPaginated } from '../lib/pagination.js';
 
 const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -79,23 +80,31 @@ export async function createClassroom(teacherId, { name, courseId }) {
   });
 }
 
-export async function listClassrooms(teacherId, { courseId } = {}) {
-  return prisma.classroom.findMany({
-    where: {
-      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
-      ...(courseId ? { courseId } : {}),
-    },
-    include: {
-      course: true,
-      _count: { select: { enrollments: true, examAssignments: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+export async function listClassrooms(teacherId, { courseId, page, limit } = {}) {
+  const where = {
+    ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
+    ...(courseId ? { courseId } : {}),
+  };
+
+  return runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.classroom.findMany({
+        where,
+        include: {
+          course: true,
+          _count: { select: { enrollments: true, examAssignments: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs,
+      }),
+    () => prisma.classroom.count({ where }),
+  );
 }
 
 export async function getClassroomDetail(teacherId, classroomId) {
   const classroom = await getOwnedClassroom(teacherId, classroomId);
-  const [students, assignments] = await Promise.all([
+  const [studentPage, assignments] = await Promise.all([
     listStudents(classroomId),
     prisma.examAssignment.findMany({
       where: { classroomId },
@@ -103,20 +112,31 @@ export async function getClassroomDetail(teacherId, classroomId) {
       orderBy: { createdAt: 'desc' },
     }),
   ]);
-  return { ...classroom, students, examAssignments: assignments };
+  return { ...classroom, students: studentPage.items, examAssignments: assignments };
 }
 
-export async function listStudents(classroomId) {
-  const enrollments = await prisma.enrollment.findMany({
-    // เฉพาะบัญชีนักเรียนจริง (กันบัญชี ADMIN ที่ถูกผูกเข้าห้องเพื่อดูฝั่งนักเรียนโผล่ในรายชื่อ)
-    where: { classroomId, student: { role: 'STUDENT' } },
-    include: { student: true },
-    orderBy: { student: { fullName: 'asc' } },
-  });
-  return enrollments.map((enrollment) => ({
+export async function listStudents(classroomId, { page, limit } = {}) {
+  const where = { classroomId, student: { role: 'STUDENT' } };
+
+  const { items, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.enrollment.findMany({
+        // เฉพาะบัญชีนักเรียนจริง (กันบัญชี ADMIN ที่ถูกผูกเข้าห้องเพื่อดูฝั่งนักเรียนโผล่ในรายชื่อ)
+        where,
+        include: { student: true },
+        orderBy: { student: { fullName: 'asc' } },
+        ...pageArgs,
+      }),
+    () => prisma.enrollment.count({ where }),
+  );
+
+  const students = items.map((enrollment) => ({
     ...publicUser(enrollment.student),
     enrolledAt: enrollment.enrolledAt,
   }));
+
+  return { items: students, pagination };
 }
 
 const CSV_STUDENT_HEADERS = ['ลำดับ', 'รหัสนักเรียน', 'ชื่อ-นามสกุล', 'อีเมล', 'สถานะบัญชี', 'วันที่เข้าห้อง'];
@@ -141,7 +161,7 @@ export function buildStudentRosterTemplateCsv() {
  */
 export async function exportClassroomStudentsCsv(teacherId, classroomId) {
   const classroom = await getOwnedClassroom(teacherId, classroomId);
-  const students = await listStudents(classroomId);
+  const { items: students } = await listStudents(classroomId);
 
   const rows = students.map((student, index) => [
     index + 1,
@@ -402,25 +422,34 @@ export async function deleteClassroom(teacherId, classroomId) {
 }
 
 /** ห้องเรียนทั้งหมดที่นักเรียนคนนี้อยู่ */
-export async function listStudentClassrooms(studentId) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: { studentId },
-    include: {
-      classroom: {
-        include: {
-          course: { select: { id: true, code: true, title: true } },
-          teacher: { select: { id: true, fullName: true } },
-          _count: { select: { enrollments: true } },
-        },
-      },
-    },
-    orderBy: { enrolledAt: 'desc' },
-  });
+export async function listStudentClassrooms(studentId, { page, limit } = {}) {
+  const where = { studentId };
 
-  return enrollments.map((enrollment) => ({
+  const { items, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.enrollment.findMany({
+        where,
+        include: {
+          classroom: {
+            include: {
+              course: { select: { id: true, code: true, title: true } },
+              teacher: { select: { id: true, fullName: true } },
+            },
+          },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        ...pageArgs,
+      }),
+    () => prisma.enrollment.count({ where }),
+  );
+
+  const classrooms = items.map((enrollment) => ({
     ...enrollment.classroom,
     enrolledAt: enrollment.enrolledAt,
   }));
+
+  return { items: classrooms, pagination };
 }
 
 /** นักเรียนกรอกรหัสห้องเรียนเพื่อเข้าห้องเอง */ export async function joinClassroom(studentId, joinCode) {
@@ -440,41 +469,51 @@ export async function listStudentClassrooms(studentId) {
 }
 
 /** รวมรายชื่อนักเรียนทั้งหมดของครูคนนี้ (ทุกห้องเรียน) */
-export async function listTeacherStudents(teacherId, { q } = {}) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      ...(isAdminActor(teacherId) ? {} : { classroom: { teacherId: actorId(teacherId) } }),
-      student: {
-        // เฉพาะนักเรียนจริง — ไม่นับบัญชี ADMIN ที่ผูกเข้าห้องเพื่อทดสอบฝั่งนักเรียน
-        role: 'STUDENT',
-        ...(q
-          ? {
-              OR: [
-                { fullName: { contains: q, mode: 'insensitive' } },
-                { email: { contains: q, mode: 'insensitive' } },
-                { studentCode: { contains: q, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-    },
-    include: {
-      student: true,
-      classroom: { select: { id: true, name: true } },
-    },
-    orderBy: { student: { fullName: 'asc' } },
+export async function listTeacherStudents(teacherId, { q, page, limit } = {}) {
+  const teacherScope = isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) };
+
+  const where = {
+    // เฉพาะนักเรียนจริง — ไม่นับบัญชี ADMIN ที่ผูกเข้าห้องเพื่อทดสอบฝั่งนักเรียน
+    role: 'STUDENT',
+    enrollments: { some: { classroom: teacherScope } },
+    ...(q
+      ? {
+          OR: [
+            { fullName: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+            { studentCode: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  // แบ่งหน้าบน "นักเรียน" (ไม่ใช่ enrollment) เพื่อไม่ให้คนเดียวถูกตัดข้ามหน้า
+  const { items, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.user.findMany({
+        where,
+        include: {
+          enrollments: {
+            where: { classroom: teacherScope },
+            include: { classroom: { select: { id: true, name: true } } },
+          },
+        },
+        orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+        ...pageArgs,
+      }),
+    () => prisma.user.count({ where }),
+  );
+
+  const students = items.map((student) => {
+    const { enrollments, ...rest } = student;
+    return {
+      ...publicUser(rest),
+      classrooms: enrollments.map((enrollment) => enrollment.classroom),
+    };
   });
 
-  const students = new Map();
-  for (const enrollment of enrollments) {
-    const current = students.get(enrollment.studentId) ?? {
-      ...publicUser(enrollment.student),
-      classrooms: [],
-    };
-    current.classrooms.push(enrollment.classroom);
-    students.set(enrollment.studentId, current);
-  }
-  return [...students.values()];
+  return { items: students, pagination };
 }
 
 export async function createStudent(teacherId, payload) {

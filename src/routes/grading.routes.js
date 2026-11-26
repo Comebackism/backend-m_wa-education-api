@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, teacherOnly } from '../middleware/auth.js';
-import { idParams } from '../validators/common.js';
+import { idParams, withPagination } from '../validators/common.js';
 import * as gradingService from '../services/grading.service.js';
 
 const router = Router();
@@ -14,14 +14,17 @@ const submissionStatus = z.enum(['IN_PROGRESS', 'SUBMITTED', 'GRADED', 'RELEASED
 // รายการส่งข้อสอบของทั้งชุด
 router.get(
   '/exams/:examId/submissions',
-  validate({ params: idParams('examId'), query: z.object({ status: submissionStatus.optional() }) }),
+  validate({
+    params: idParams('examId'),
+    query: withPagination({ status: submissionStatus.optional() }),
+  }),
   async (req, res) => {
-    const submissions = await gradingService.listExamSubmissions(
+    const { items: submissions, pagination } = await gradingService.listExamSubmissions(
       req.user,
       req.params.examId,
       req.validatedQuery,
     );
-    res.json({ submissions });
+    res.json({ submissions, ...(pagination ? { pagination } : {}) });
   },
 );
 

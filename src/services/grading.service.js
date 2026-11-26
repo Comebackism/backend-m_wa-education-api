@@ -6,24 +6,33 @@ import { serializeTeacherSubmission, toNumber } from '../lib/serialize.js';
 import { toCsv } from '../lib/csv.js';
 import { emitToUser, emitToUsers } from '../realtime/emit.js';
 import { RealtimeEvent } from '../realtime/events.js';
+import { parsePagination, runPaginated } from '../lib/pagination.js';
 
 const studentSelect = { select: { id: true, fullName: true, email: true, studentCode: true } };
 
-export async function listExamSubmissions(teacherId, examId, { status } = {}) {
+export async function listExamSubmissions(teacherId, examId, { status, page, limit } = {}) {
   await getOwnedExam(teacherId, examId);
 
-  const submissions = await prisma.submission.findMany({
-    where: { examId, ...(status ? { status } : {}) },
-    include: {
-      student: studentSelect,
-      // นับจากคำตอบที่ยังไม่ตรวจ (isCorrect = null) ไม่ใช่จาก totalScore
-      // เพราะข้อผสมอาจมีคะแนนปรนัยแล้วแต่ยังเหลืออัตนัยที่ต้องตรวจ
-      _count: { select: { answers: { where: { isCorrect: null } } } },
-    },
-    orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-  });
+  const where = { examId, ...(status ? { status } : {}) };
 
-  return submissions.map((submission) => {
+  const { items: submissions, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.submission.findMany({
+        where,
+        include: {
+          student: studentSelect,
+          // นับจากคำตอบที่ยังไม่ตรวจ (isCorrect = null) ไม่ใช่จาก totalScore
+          // เพราะข้อผสมอาจมีคะแนนปรนัยแล้วแต่ยังเหลืออัตนัยที่ต้องตรวจ
+          _count: { select: { answers: { where: { isCorrect: null } } } },
+        },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
+        ...pageArgs,
+      }),
+    () => prisma.submission.count({ where }),
+  );
+
+  const rows = submissions.map((submission) => {
     const { _count, ...rest } = submission;
     const ungradedCount = _count.answers;
     const serialized = serializeTeacherSubmission(rest);
@@ -33,6 +42,8 @@ export async function listExamSubmissions(teacherId, examId, { status } = {}) {
       needsGrading: submission.status === 'SUBMITTED' && ungradedCount > 0,
     };
   });
+
+  return { items: rows, pagination };
 }
 
 /** รายละเอียดการส่ง + คำตอบทุกข้อ ให้ครูตรวจ */

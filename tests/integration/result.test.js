@@ -31,7 +31,7 @@ describe('listStudentResults', () => {
     await prisma.submission.create({
       data: { examId: exam.id, studentId: student.id, status: 'IN_PROGRESS' },
     });
-    assert.deepEqual(await resultService.listStudentResults(student.id), []);
+    assert.deepEqual((await resultService.listStudentResults(student.id)).items, []);
     void mc;
     void text;
   });
@@ -54,7 +54,7 @@ describe('listStudentResults', () => {
       },
     });
 
-    const [row] = await resultService.listStudentResults(student.id);
+    const [row] = (await resultService.listStudentResults(student.id)).items;
     assert.equal(row.pendingTeacherAction, true);
     assert.equal('totalScore' in row, false);
     assert.equal('grade' in row, false);
@@ -81,7 +81,7 @@ describe('listStudentResults', () => {
       },
     });
 
-    const [row] = await resultService.listStudentResults(student.id);
+    const [row] = (await resultService.listStudentResults(student.id)).items;
     assert.equal(row.pendingTeacherAction, false);
     assert.equal(row.totalScore, 4);
     assert.equal(row.percent, 100);
@@ -110,7 +110,7 @@ describe('listStudentResults', () => {
     });
 
     const filtered = await resultService.listStudentResults(student.id, { examId: second.exam.id });
-    assert.deepEqual(filtered, []);
+    assert.deepEqual(filtered.items, []);
   });
 });
 

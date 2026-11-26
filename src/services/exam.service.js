@@ -10,6 +10,7 @@ import {
 } from '../lib/access.js';
 import { recalculateExamTotals, recalculateSubmission, round2 } from '../lib/grading.js';
 import { serializeStudentSubmission, toNumber } from '../lib/serialize.js';
+import { parsePagination, runPaginated } from '../lib/pagination.js';
 import { toCsv } from '../lib/csv.js';
 import { normalizeIpRules } from '../lib/ipAllowlist.js';
 import { QUESTION_IMPORT_HEADERS, readQuestionImportFile } from '../lib/questionImport.js';
@@ -50,19 +51,27 @@ export async function createExam(teacherId, payload) {
   });
 }
 
-export async function listExams(teacherId, { status, courseId } = {}) {
-  return prisma.exam.findMany({
-    where: {
-      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
-      ...(status ? { status } : {}),
-      ...(courseId ? { courseId } : {}),
-    },
-    include: {
-      course: { select: { id: true, code: true, title: true } },
-      _count: { select: { questions: true, submissions: true, assignments: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+export async function listExams(teacherId, { status, courseId, page, limit } = {}) {
+  const where = {
+    ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
+    ...(status ? { status } : {}),
+    ...(courseId ? { courseId } : {}),
+  };
+
+  return runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.exam.findMany({
+        where,
+        include: {
+          course: { select: { id: true, code: true, title: true } },
+          _count: { select: { questions: true, submissions: true, assignments: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        ...pageArgs,
+      }),
+    () => prisma.exam.count({ where }),
+  );
 }
 
 export async function getExamDetail(teacherId, examId) {
@@ -463,33 +472,41 @@ export async function closeExam(teacherId, examId) {
 // student side
 // ---------------------------------------------------------------------------
 
-export async function listStudentExams(studentId) {
-  const exams = await prisma.exam.findMany({
-    where: {
-      status: 'PUBLISHED',
-      assignments: { some: { classroom: { enrollments: { some: { studentId } } } } },
-    },
-    include: {
-      course: { select: { id: true, code: true, title: true } },
-      _count: { select: { questions: true } },
-      submissions: {
-        where: { studentId },
-        select: {
-          id: true,
-          status: true,
-          startedAt: true,
-          expiresAt: true,
-          submittedAt: true,
-          totalScore: true,
-          percent: true,
-          grade: true,
-        },
-      },
-    },
-    orderBy: { updatedAt: 'desc' },
-  });
+export async function listStudentExams(studentId, { page, limit } = {}) {
+  const where = {
+    status: 'PUBLISHED',
+    assignments: { some: { classroom: { enrollments: { some: { studentId } } } } },
+  };
 
-  return exams.map((exam) => {
+  const { items: exams, pagination } = await runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.exam.findMany({
+        where,
+        include: {
+          course: { select: { id: true, code: true, title: true } },
+          _count: { select: { questions: true } },
+          submissions: {
+            where: { studentId },
+            select: {
+              id: true,
+              status: true,
+              startedAt: true,
+              expiresAt: true,
+              submittedAt: true,
+              totalScore: true,
+              percent: true,
+              grade: true,
+            },
+          },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+        ...pageArgs,
+      }),
+    () => prisma.exam.count({ where }),
+  );
+
+  const rows = exams.map((exam) => {
     const { submissions, _count, ...rest } = exam;
     const raw = submissions[0] ?? null;
     // "ไม่รั่ว": โชว์คะแนน/เกรดเฉพาะเมื่อครูกดปล่อยผลแล้วเท่านั้น
@@ -514,6 +531,8 @@ export async function listStudentExams(studentId) {
       canStart: !raw || raw.status === 'IN_PROGRESS',
     };
   });
+
+  return { items: rows, pagination };
 }
 
 /**

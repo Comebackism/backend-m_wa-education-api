@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, teacherOnly } from '../middleware/auth.js';
-import { idParams, optionalQueryString } from '../validators/common.js';
+import { idParams, optionalQueryString, withPagination } from '../validators/common.js';
 import * as courseService from '../services/course.service.js';
 
 const router = Router();
@@ -17,9 +17,9 @@ const courseBody = z.object({
 
 const coursePatch = courseBody.partial();
 
-router.get('/', validate({ query: z.object({ q: optionalQueryString }) }), async (req, res) => {
-  const courses = await courseService.listCourses(req.user, req.validatedQuery);
-  res.json({ courses });
+router.get('/', validate({ query: withPagination({ q: optionalQueryString }) }), async (req, res) => {
+  const { items: courses, pagination } = await courseService.listCourses(req.user, req.validatedQuery);
+  res.json({ courses, ...(pagination ? { pagination } : {}) });
 });
 
 router.post('/', validate({ body: courseBody }), async (req, res) => {

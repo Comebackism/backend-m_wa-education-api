@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { authenticate, studentOnly, teacherOnly } from '../middleware/auth.js';
 import { uploadSingleFile } from '../middleware/upload.js';
-import { idParams, uuid, booleanQuery } from '../validators/common.js';
+import { idParams, uuid, booleanQuery, withPagination } from '../validators/common.js';
 import { ApiError } from '../lib/errors.js';
 import * as classroomService from '../services/classroom.service.js';
 
@@ -40,9 +40,12 @@ const addStudentBody = z.object({
 
 const classroomIdParams = idParams('classroomId');
 
-router.get('/', validate({ query: z.object({ courseId: uuid.optional() }) }), async (req, res) => {
-  const classrooms = await classroomService.listClassrooms(req.user, req.validatedQuery);
-  res.json({ classrooms });
+router.get('/', validate({ query: withPagination({ courseId: uuid.optional() }) }), async (req, res) => {
+  const { items: classrooms, pagination } = await classroomService.listClassrooms(
+    req.user,
+    req.validatedQuery,
+  );
+  res.json({ classrooms, ...(pagination ? { pagination } : {}) });
 });
 
 router.post('/', validate({ body: createClassroomBody }), async (req, res) => {
@@ -70,11 +73,18 @@ router.delete('/:classroomId', validate({ params: classroomIdParams }), async (r
 });
 
 // รายชื่อนักเรียนในห้อง
-router.get('/:classroomId/students', validate({ params: classroomIdParams }), async (req, res) => {
-  await classroomService.ensureOwned(req.user, req.params.classroomId);
-  const students = await classroomService.listStudents(req.params.classroomId);
-  res.json({ students });
-});
+router.get(
+  '/:classroomId/students',
+  validate({ params: classroomIdParams, query: withPagination() }),
+  async (req, res) => {
+    await classroomService.ensureOwned(req.user, req.params.classroomId);
+    const { items: students, pagination } = await classroomService.listStudents(
+      req.params.classroomId,
+      req.validatedQuery,
+    );
+    res.json({ students, ...(pagination ? { pagination } : {}) });
+  },
+);
 
 // ส่งออกรายชื่อนักเรียนในห้องเป็น CSV
 router.get('/:classroomId/students/export', validate({ params: classroomIdParams }), async (req, res) => {

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { getOwnedCourse, actorId, isAdminActor } from '../lib/access.js';
+import { parsePagination, runPaginated } from '../lib/pagination.js';
 
 export async function createCourse(teacherId, payload) {
   return prisma.course.create({
@@ -13,22 +14,30 @@ export async function createCourse(teacherId, payload) {
   });
 }
 
-export async function listCourses(teacherId, { q } = {}) {
-  return prisma.course.findMany({
-    where: {
-      ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
-      ...(q
-        ? {
-            OR: [
-              { code: { contains: q, mode: 'insensitive' } },
-              { title: { contains: q, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    },
-    include: { _count: { select: { classrooms: true, exams: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
+export async function listCourses(teacherId, { q, page, limit } = {}) {
+  const where = {
+    ...(isAdminActor(teacherId) ? {} : { teacherId: actorId(teacherId) }),
+    ...(q
+      ? {
+          OR: [
+            { code: { contains: q, mode: 'insensitive' } },
+            { title: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  return runPaginated(
+    parsePagination({ page, limit }),
+    (pageArgs = {}) =>
+      prisma.course.findMany({
+        where,
+        include: { _count: { select: { classrooms: true, exams: true } } },
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs,
+      }),
+    () => prisma.course.count({ where }),
+  );
 }
 
 export async function getCourseDetail(teacherId, courseId) {

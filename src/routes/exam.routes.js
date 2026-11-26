@@ -5,7 +5,7 @@ import { authenticate, teacherOnly } from '../middleware/auth.js';
 import { uploadSingleFile } from '../middleware/upload.js';
 import { ApiError } from '../lib/errors.js';
 import { formatIp, getClientIp, normalizeIp, validateIpRules } from '../lib/ipAllowlist.js';
-import { booleanQuery, idParams, uuid } from '../validators/common.js';
+import { booleanQuery, idParams, uuid, withPagination } from '../validators/common.js';
 import { DEFAULT_CUTOFFS } from '../services/exam.service.js';
 import * as examService from '../services/exam.service.js';
 
@@ -73,14 +73,14 @@ const assignmentBody = z.object({
 router.get(
   '/',
   validate({
-    query: z.object({
+    query: withPagination({
       status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED']).optional(),
       courseId: uuid.optional(),
     }),
   }),
   async (req, res) => {
-    const exams = await examService.listExams(req.user, req.validatedQuery);
-    res.json({ exams });
+    const { items: exams, pagination } = await examService.listExams(req.user, req.validatedQuery);
+    res.json({ exams, ...(pagination ? { pagination } : {}) });
   },
 );
 
