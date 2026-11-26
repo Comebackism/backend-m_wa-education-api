@@ -74,6 +74,17 @@ describe('buildPaginationMeta', () => {
       hasPrev: false,
     });
   });
+
+  it('limit = 0 → totalPages = 0 (กันการหารด้วยศูนย์)', () => {
+    assert.deepEqual(buildPaginationMeta({ page: 1, limit: 0 }, 5), {
+      page: 1,
+      limit: 0,
+      total: 5,
+      totalPages: 0,
+      hasNext: false,
+      hasPrev: false,
+    });
+  });
 });
 
 describe('runPaginated', () => {

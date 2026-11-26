@@ -70,6 +70,53 @@ describe('course service', () => {
     await expectApiError(courseService.getCourseDetail(await createTeacher(), course.id), 403);
     await expectApiError(courseService.getCourseDetail(owner, '11111111-1111-1111-1111-111111111111'), 404);
   });
+
+  it('ADMIN เห็นรายวิชาของทุกคนใน listCourses', async () => {
+    const { createAdmin } = await import('../helpers/fixtures.js');
+    const first = await createTeacher();
+    const second = await createTeacher();
+    await courseService.createCourse(first, { code: 'MATH', title: 'คณิตศาสตร์' });
+    await courseService.createCourse(second, { code: 'THAI', title: 'ภาษาไทย' });
+
+    const admin = await createAdmin();
+    const { items } = await courseService.listCourses(admin);
+    assert.equal(items.length, 2);
+
+    // ครูทั่วไปยังเห็นเฉพาะของตัวเอง (คุมว่า branch ADMIN ไม่รั่วไปหาคนอื่น)
+    const { items: mine } = await courseService.listCourses(first);
+    assert.equal(mine.length, 1);
+  });
+
+  it('ADMIN แก้รายวิชาของครูคนอื่นได้ แต่ครูคนอื่นถูกปฏิเสธ', async () => {
+    const { createAdmin } = await import('../helpers/fixtures.js');
+    const owner = await createTeacher();
+    const course = await createCourse(owner);
+
+    const admin = await createAdmin();
+    const updated = await courseService.updateCourse(admin, course.id, { title: 'แก้โดยแอดมิน' });
+    assert.equal(updated.title, 'แก้โดยแอดมิน');
+
+    await expectApiError(courseService.updateCourse(await createTeacher(), course.id, { title: 'x' }), 403);
+  });
+
+  it('updateCourse แก้ทีละฟิลด์ (code / description) และรับ description = null', async () => {
+    const teacher = await createTeacher();
+    const course = await courseService.createCourse(teacher, {
+      code: 'PHY',
+      title: 'ฟิสิกส์',
+      description: 'คำอธิบายเดิม',
+    });
+    assert.equal(course.description, 'คำอธิบายเดิม');
+
+    const codeOnly = await courseService.updateCourse(teacher, course.id, { code: 'PHY2' });
+    assert.equal(codeOnly.code, 'PHY2');
+    assert.equal(codeOnly.title, 'ฟิสิกส์');
+    assert.equal(codeOnly.description, 'คำอธิบายเดิม');
+
+    const cleared = await courseService.updateCourse(teacher, course.id, { description: null });
+    assert.equal(cleared.description, null);
+    assert.equal(cleared.code, 'PHY2');
+  });
 });
 
 describe('classroom service', () => {
