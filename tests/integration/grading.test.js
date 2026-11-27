@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { disconnectDatabase, prisma, resetDatabase } from '../helpers/db.js';
 import {
+  addChoiceQuestion,
   createClassroom,
   createExam,
   createPublishedExam,
@@ -12,7 +13,7 @@ import {
   enroll,
 } from '../helpers/fixtures.js';
 import { expectApiError } from '../helpers/api-error.js';
-import { recalculateSubmission } from '../../src/lib/grading.js';
+import { recalculateExamSubmissions, recalculateSubmission } from '../../src/lib/grading.js';
 import * as gradingService from '../../src/services/grading.service.js';
 import * as submissionService from '../../src/services/submission.service.js';
 
@@ -354,5 +355,245 @@ describe('recalculateSubmission', () => {
 
     const updated = await recalculateSubmission(released.id);
     assert.equal(updated.status, 'RELEASED');
+  });
+
+  it('รับ tx → คิดคะแนนในทรานแซกชันเดียวกับผู้เรียก', async () => {
+    const { submission, textAnswer } = await setupSubmitted();
+    await prisma.answer.update({
+      where: { id: textAnswer.id },
+      data: { isCorrect: true, awardedPoints: 2 },
+    });
+
+    const updated = await prisma.$transaction((tx) => recalculateSubmission(submission.id, { tx }));
+    assert.equal(updated.status, 'GRADED');
+    assert.equal(Number(updated.totalScore), 4);
+  });
+});
+
+describe('recalculateExamSubmissions', () => {
+  it('คิดคะแนนทุกใบที่ส่งแล้ว + ตั้ง gradedAt เมื่อตรวจครบ', async () => {
+    const { exam, textAnswer } = await setupSubmitted();
+    await prisma.answer.update({
+      where: { id: textAnswer.id },
+      data: { isCorrect: true, awardedPoints: 2 },
+    });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].status, 'GRADED');
+    assert.equal(results[0].totalScore, 4);
+
+    const stored = await prisma.submission.findUnique({ where: { id: results[0].id } });
+    assert.equal(stored.status, 'GRADED');
+    assert.equal(Number(stored.totalScore), 4);
+    assert.equal(Number(stored.percent), 100);
+    assert.equal(stored.grade, 'A');
+    assert.equal(stored.gradedAt instanceof Date, true);
+  });
+
+  it('ไม่ส่ง submissionIds → ข้ามใบที่ยังทำอยู่ (IN_PROGRESS)', async () => {
+    const { exam, submission } = await setupSubmitted();
+    const other = await createStudent({ fullName: 'ยังทำอยู่' });
+    await createSubmission(exam, other, { status: 'IN_PROGRESS' });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].id, submission.id);
+    assert.equal(results[0].status, 'SUBMITTED');
+    assert.equal(results[0].autoScore, 2);
+    assert.equal(results[0].manualScore, 0);
+  });
+
+  it('คละสถานะในชุดเดียว → คง RELEASED / ตั้ง GRADED / คง SUBMITTED ตามการตรวจของแต่ละใบ', async () => {
+    const { classroom, exam, mc, text, submission } = await setupSubmitted();
+    // ใบของ setupSubmitted ยังไม่ตรวจอัตนัย → ต้องคง SUBMITTED
+
+    const gradedStudent = await createStudent({ fullName: 'ตรวจครบแล้ว' });
+    await enroll(gradedStudent, classroom);
+    const graded = await createSubmission(exam, gradedStudent, {
+      status: 'SUBMITTED',
+      submittedAt: new Date(),
+    });
+    await prisma.answer.createMany({
+      data: [
+        {
+          submissionId: graded.id,
+          questionId: mc.id,
+          choiceId: mc.choices[0].id,
+          isCorrect: true,
+          autoGraded: true,
+          awardedPoints: 2,
+        },
+        {
+          submissionId: graded.id,
+          questionId: text.id,
+          textAnswer: 'ตอบถูก',
+          isCorrect: true,
+          autoGraded: false,
+          awardedPoints: 2,
+        },
+      ],
+    });
+
+    const releasedStudent = await createStudent({ fullName: 'ปล่อยผลแล้ว' });
+    await enroll(releasedStudent, classroom);
+    const released = await createSubmission(exam, releasedStudent, {
+      status: 'RELEASED',
+      submittedAt: new Date(),
+      releasedAt: new Date(),
+    });
+    await prisma.answer.createMany({
+      data: [
+        {
+          submissionId: released.id,
+          questionId: mc.id,
+          choiceId: mc.choices[0].id,
+          isCorrect: true,
+          autoGraded: true,
+          awardedPoints: 2,
+        },
+        {
+          submissionId: released.id,
+          questionId: text.id,
+          textAnswer: 'ตอบถูก',
+          isCorrect: true,
+          autoGraded: false,
+          awardedPoints: 2,
+        },
+      ],
+    });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    const byId = new Map(results.map((row) => [row.id, row]));
+
+    assert.equal(results.length, 3);
+    assert.equal(byId.get(submission.id).status, 'SUBMITTED');
+    assert.equal(byId.get(graded.id).status, 'GRADED');
+    assert.equal(byId.get(graded.id).manualScore, 2);
+    assert.equal(byId.get(released.id).status, 'RELEASED');
+    assert.equal(byId.get(released.id).totalScore, 4);
+  });
+
+  it('ส่ง submissionIds → จำกัดเฉพาะใบที่ระบุ', async () => {
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const { exam, mc } = await createPublishedExam(teacher, classroom, { withText: false });
+
+    const a = await createStudent();
+    await enroll(a, classroom);
+    const startedA = await submissionService.startSubmission(exam.id, a.id);
+    await submissionService.saveAnswers(startedA.id, a.id, [
+      { questionId: mc.id, choiceId: mc.choices[0].id },
+    ]);
+    await submissionService.submitSubmission(startedA.id, a.id);
+
+    const b = await createStudent();
+    await enroll(b, classroom);
+    const startedB = await submissionService.startSubmission(exam.id, b.id);
+    await submissionService.submitSubmission(startedB.id, b.id);
+
+    const results = await recalculateExamSubmissions(exam.id, { submissionIds: [startedA.id] });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].id, startedA.id);
+  });
+
+  it('submissionIds เป็นอาร์เรย์ว่าง → ไม่แตะใครเลย', async () => {
+    const { exam } = await setupSubmitted();
+    const results = await recalculateExamSubmissions(exam.id, { submissionIds: [] });
+    assert.deepEqual(results, []);
+  });
+
+  it('ไม่มีใบที่ส่งแล้ว → คืนอาร์เรย์ว่าง', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.deepEqual(results, []);
+  });
+
+  it('ส่ง totalPoints มาเอง → ใช้ค่านั้นคิดเปอร์เซ็นต์', async () => {
+    const { exam, textAnswer } = await setupSubmitted();
+    await prisma.answer.update({
+      where: { id: textAnswer.id },
+      data: { isCorrect: true, awardedPoints: 2 },
+    });
+
+    const results = await recalculateExamSubmissions(exam.id, { totalPoints: 8 });
+    assert.equal(results[0].percent, 50);
+  });
+
+  it('ใบที่ไม่มีคำตอบเลย → คะแนน 0 และถือว่าตรวจครบ', async () => {
+    const teacher = await createTeacher();
+    const classroom = await createClassroom(teacher);
+    const { exam } = await createPublishedExam(teacher, classroom);
+    const student = await createStudent();
+    await createSubmission(exam, student, { status: 'SUBMITTED', submittedAt: new Date() });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].totalScore, 0);
+    assert.equal(results[0].status, 'GRADED');
+  });
+
+  it('ไม่มีเกณฑ์ตัดเกรด → เกรดเป็น null', async () => {
+    const teacher = await createTeacher();
+    const exam = await createExam(teacher);
+    const question = await addChoiceQuestion(exam, { points: 2 });
+    const student = await createStudent();
+    const submission = await createSubmission(exam, student, {
+      status: 'SUBMITTED',
+      submittedAt: new Date(),
+    });
+    await prisma.answer.create({
+      data: {
+        submissionId: submission.id,
+        questionId: question.id,
+        choiceId: question.choices[0].id,
+        isCorrect: true,
+        autoGraded: true,
+        awardedPoints: 2,
+      },
+    });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.equal(results[0].grade, null);
+    assert.equal(results[0].status, 'GRADED');
+  });
+
+  it('ใบที่ปล่อยผลแล้ว → คงสถานะ RELEASED', async () => {
+    const { exam, student } = await setupSubmitted();
+    await prisma.submission.update({
+      where: { examId_studentId: { examId: exam.id, studentId: student.id } },
+      data: { status: 'RELEASED', releasedAt: new Date() },
+    });
+
+    const results = await recalculateExamSubmissions(exam.id);
+    assert.equal(results[0].status, 'RELEASED');
+  });
+
+  it('gradedAt เดิมคงอยู่ ไม่ถูกเขียนทับ', async () => {
+    const { exam, submission, textAnswer } = await setupSubmitted();
+    const past = new Date('2020-01-01T00:00:00.000Z');
+    await prisma.answer.update({
+      where: { id: textAnswer.id },
+      data: { isCorrect: true, awardedPoints: 2 },
+    });
+    await prisma.submission.update({ where: { id: submission.id }, data: { gradedAt: past } });
+
+    await recalculateExamSubmissions(exam.id);
+    const stored = await prisma.submission.findUnique({ where: { id: submission.id } });
+    assert.equal(stored.gradedAt.getTime(), past.getTime());
+  });
+
+  it('รับ tx → อัปเดตภายในทรานแซกชันเดียวกับผู้เรียก', async () => {
+    const { exam, textAnswer } = await setupSubmitted();
+    await prisma.answer.update({
+      where: { id: textAnswer.id },
+      data: { isCorrect: true, awardedPoints: 2 },
+    });
+
+    const results = await prisma.$transaction((tx) => recalculateExamSubmissions(exam.id, { tx }));
+    assert.equal(results.length, 1);
+    const stored = await prisma.submission.findUnique({ where: { id: results[0].id } });
+    assert.equal(stored.status, 'GRADED');
   });
 });
