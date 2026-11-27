@@ -87,6 +87,7 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 
@@ -274,6 +275,8 @@ model Submission {
   @@unique([examId, studentId]) /// 1 attempt per student per exam
   @@index([studentId])
   @@index([status])
+  @@index([examId, status]) /// กรองใบตามสถานะในข้อสอบชุดเดียว (list/stats/release)
+  @@index([examId, submittedAt]) /// เรียงใบที่ส่งแล้วของข้อสอบชุดเดียว
   @@map("submissions")
 }
 
@@ -299,5 +302,6 @@ model Answer {
 
   @@unique([submissionId, questionId])
   @@index([questionId])
+  @@index([submissionId, isCorrect]) /// นับงานที่ยังไม่ตรวจ (isCorrect = null) ของใบเดียว
   @@map("answers")
 }
